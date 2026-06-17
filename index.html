@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="description" content="Jellyfish Lab V7 - standalone WebGL2 jellyfish motion study for GitHub Pages." />
+<meta name="theme-color" content="#060912" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Jellyfish Lab V7" />
+<title>Jellyfish Lab V7 - GitHub Pages</title>
+<style>
+  :root{
+    --bg:#060912;
+    --bg2:#0b1020;
+    --panel:#101726;
+    --panel2:#0c1220;
+    --text:#ecf4ff;
+    --muted:#9eb2d4;
+    --accent:#7ab8ff;
+    --accent2:#7fffd5;
+    --border:rgba(255,255,255,.08);
+    --shadow:0 16px 50px rgba(0,0,0,.38);
+    --radius:18px;
+  }
+  *{box-sizing:border-box}
+  html{
+    height:100%;
+    height:100dvh;
+    overflow:hidden;
+    overscroll-behavior:none;
+    -webkit-text-size-adjust:100%;
+    touch-action:none;
+  }
+  body{margin:0;height:100%;min-height:100dvh;overflow:hidden;background:
+    radial-gradient(1000px 700px at 10% 10%, rgba(122,184,255,.08), transparent 60%),
+    radial-gradient(900px 700px at 90% 20%, rgba(127,255,213,.06), transparent 60%),
+    linear-gradient(180deg,var(--bg),var(--bg2));
+    color:var(--text);font-family:Inter,system-ui,sans-serif;display:grid;grid-template-columns:360px 1fr;gap:16px;padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+    overscroll-behavior:none;
+    -webkit-tap-highlight-color:transparent;
+    user-select:none}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:auto;max-height:calc(100dvh - 32px);padding:14px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+  h1{font-size:18px;margin:0 0 6px;letter-spacing:.02em}
+  .sub{margin:0 0 14px;color:var(--muted);font-size:12px;line-height:1.45}
+  .group{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:14px;padding:12px;margin:0 0 12px}
+  .group-title{display:flex;justify-content:space-between;align-items:center;font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:10px}
+  .row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;margin-bottom:10px}
+  .row:last-child{margin-bottom:0}
+  label{font-size:12px}
+  .val{min-width:72px;text-align:right;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  input[type="range"],button{width:100%}
+  input[type="range"]{accent-color:var(--accent)}
+  button,select{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text);padding:9px 10px;border-radius:11px;font:inherit;font-size:12px}
+  button{cursor:pointer;transition:transform .08s ease,border-color .15s ease,background .15s ease}
+  button:hover{transform:translateY(-1px);border-color:rgba(255,255,255,.18)}
+  .btn-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .accent{background:linear-gradient(90deg, rgba(122,184,255,.18), rgba(127,255,213,.14));border-color:rgba(122,184,255,.28)}
+  .stage{position:relative;overflow:hidden;border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);background:#04070d;min-height:420px;touch-action:none}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  .hud{position:absolute;left:12px;top:12px;display:flex;flex-wrap:wrap;gap:8px;pointer-events:none;z-index:5}
+  .chip{font-size:11px;padding:5px 9px;border-radius:999px;background:rgba(122,184,255,.14);border:1px solid rgba(122,184,255,.26);backdrop-filter:blur(8px)}
+  .fab{display:none;position:absolute;top:12px;right:12px;z-index:12;width:44px;height:44px;border-radius:14px}
+  .drawer{display:none;width:56px;height:6px;border-radius:999px;margin:4px auto 12px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.08)}
+  .error{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;background:#05070c;z-index:20}
+  .error.active{display:flex}
+  @media (max-width:980px){
+    body{grid-template-columns:1fr;padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
+    .stage{min-height:calc(100dvh - max(20px,env(safe-area-inset-top) + env(safe-area-inset-bottom)))}
+    .panel{position:fixed;left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));max-height:min(72dvh,calc(100dvh - 24px));z-index:30;transform:translateY(calc(100% - 64px));transition:transform .2s ease}
+    body.panel-open .panel{transform:translateY(0)}
+    .fab,.drawer{display:block}
+    .fab{top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right))}
+  }
+</style>
+</head>
+<body>
+  <aside class="panel" id="panel">
+    <div class="drawer"></div>
+    <h1>Jellyfish Lab</h1>
+    <p class="sub">Nur die Qualle, aus deinem Fusion-V4-Upload herausgelöst und als eigene Basis erweitert: Glocke, orale Arme, Tentakel, Pulsation, Drift, Glow und Kamera. Die Ursprungsstruktur kam aus dem Pointcloud/Jellyfish-Block deines Uploads.</p>
+
+    <div class="group">
+      <div class="group-title"><span>Preset</span><span id="pointCountLabel">0 pts</span></div>
+      <div class="btn-row">
+        <button data-preset="classic">Classic</button>
+        <button data-preset="veil">Veil</button>
+        <button data-preset="abyss" class="accent">Abyss</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title"><span>Form</span><span id="shapeLabel">bell</span></div>
+      <div class="row"><label for="bellRadius">Bell radius</label><span class="val" id="bellRadiusVal"></span></div>
+      <input id="bellRadius" type="range" min="30" max="110" step="1" value="58">
+      <div class="row"><label for="bellHeight">Bell height</label><span class="val" id="bellHeightVal"></span></div>
+      <input id="bellHeight" type="range" min="20" max="90" step="1" value="42">
+      <div class="row"><label for="undersideLift">Underside lift</label><span class="val" id="undersideLiftVal"></span></div>
+      <input id="undersideLift" type="range" min="0" max="36" step="1" value="18">
+      <div class="row"><label for="density">Bell density</label><span class="val" id="densityVal"></span></div>
+      <input id="density" type="range" min="18" max="96" step="1" value="52">
+    </div>
+
+    <div class="group">
+      <div class="group-title"><span>Appendages</span><span id="appendageLabel">flow</span></div>
+      <div class="row"><label for="oralArms">Oral arms</label><span class="val" id="oralArmsVal"></span></div>
+      <input id="oralArms" type="range" min="2" max="12" step="1" value="4">
+      <div class="row"><label for="tentacles">Tentacles</label><span class="val" id="tentaclesVal"></span></div>
+      <input id="tentacles" type="range" min="4" max="40" step="1" value="14">
+      <div class="row"><label for="tentacleLength">Tentacle length</label><span class="val" id="tentacleLengthVal"></span></div>
+      <input id="tentacleLength" type="range" min="40" max="180" step="1" value="110">
+      <div class="row"><label for="curl">Curl</label><span class="val" id="curlVal"></span></div>
+      <input id="curl" type="range" min="0" max="2.4" step="0.01" value="0.68">
+    </div>
+
+    <div class="group">
+      <div class="group-title"><span>Motion</span><span id="motionLabel">swim</span></div>
+      <div class="row"><label for="movementMode">Movement mode</label><span class="val" id="movementModeLabel">Rowing</span></div>
+      <select id="movementMode">
+        <option value="rowing">Rowing glide</option>
+        <option value="jetting">Jetting</option>
+        <option value="recapture">Passive recapture</option>
+        <option value="hover">Hover pulse</option>
+        <option value="escape">Escape burst</option>
+        <option value="pacemaker">Pacemaker drift</option>
+      </select>
+      <div class="row" style="margin-top:10px"><label for="pulseSpeed">Pulse speed</label><span class="val" id="pulseSpeedVal"></span></div>
+      <input id="pulseSpeed" type="range" min="0" max="2.2" step="0.01" value="0.42">
+      <div class="row"><label for="pulseAmount">Pulse amount</label><span class="val" id="pulseAmountVal"></span></div>
+      <input id="pulseAmount" type="range" min="0" max="1.6" step="0.01" value="0.52">
+      <div class="row"><label for="sway">Sway</label><span class="val" id="swayVal"></span></div>
+      <input id="sway" type="range" min="0" max="2.4" step="0.01" value="0.85">
+      <div class="row"><label for="turbulence">Turbulence</label><span class="val" id="turbulenceVal"></span></div>
+      <input id="turbulence" type="range" min="0" max="2.0" step="0.01" value="0.34">
+      <div class="row"><label for="drift">Vertical drift</label><span class="val" id="driftVal"></span></div>
+      <input id="drift" type="range" min="0" max="20" step="0.1" value="7.2">
+      <div class="row"><label for="powerStroke">Power stroke</label><span class="val" id="powerStrokeVal"></span></div>
+      <input id="powerStroke" type="range" min="0" max="1" step="0.01" value="0.62">
+      <div class="row"><label for="elasticRecoil">Elastic recoil</label><span class="val" id="elasticRecoilVal"></span></div>
+      <input id="elasticRecoil" type="range" min="0" max="1" step="0.01" value="0.58">
+      <div class="row"><label for="vortexWake">Vortex wake</label><span class="val" id="vortexWakeVal"></span></div>
+      <input id="vortexWake" type="range" min="0" max="1.4" step="0.01" value="0.82">
+      <div class="row"><label for="tentacleInertia">Tentacle inertia</label><span class="val" id="tentacleInertiaVal"></span></div>
+      <input id="tentacleInertia" type="range" min="0" max="1.6" step="0.01" value="0.88">
+      <div class="row"><label for="currentFlow">Current flow</label><span class="val" id="currentFlowVal"></span></div>
+      <input id="currentFlow" type="range" min="0" max="2" step="0.01" value="0.34">
+      <div class="row"><label for="bellWave">Bell wave</label><span class="val" id="bellWaveVal"></span></div>
+      <input id="bellWave" type="range" min="0" max="1.2" step="0.01" value="0.46">
+      <div class="row"><label for="asymmetry">Asymmetric beat</label><span class="val" id="asymmetryVal"></span></div>
+      <input id="asymmetry" type="range" min="0" max="1" step="0.01" value="0.18">
+      <div class="row"><label for="fluidMemory">Fluid memory</label><span class="val" id="fluidMemoryVal"></span></div>
+      <input id="fluidMemory" type="range" min="0" max="1.4" step="0.01" value="0.72">
+      <div class="row"><label for="phaseCascade">Phase cascade</label><span class="val" id="phaseCascadeVal"></span></div>
+      <input id="phaseCascade" type="range" min="0" max="1.5" step="0.01" value="0.68">
+      <div class="row"><label for="rimFlutter">Rim flutter</label><span class="val" id="rimFlutterVal"></span></div>
+      <input id="rimFlutter" type="range" min="0" max="1.4" step="0.01" value="0.54">
+      <div class="row"><label for="microPulse">Micro pulses</label><span class="val" id="microPulseVal"></span></div>
+      <input id="microPulse" type="range" min="0" max="1" step="0.01" value="0.32">
+      <div class="row"><label for="mesogleaSpring">Mesoglea spring</label><span class="val" id="mesogleaSpringVal"></span></div>
+      <input id="mesogleaSpring" type="range" min="0" max="1.6" step="0.01" value="0.86">
+      <div class="row"><label for="coastPause">Coast pause</label><span class="val" id="coastPauseVal"></span></div>
+      <input id="coastPause" type="range" min="0" max="1" step="0.01" value="0.42">
+      <div class="row"><label for="vortexCouple">Vortex couple</label><span class="val" id="vortexCoupleVal"></span></div>
+      <input id="vortexCouple" type="range" min="0" max="1.5" step="0.01" value="0.82">
+      <div class="row"><label for="velarTuck">Velar tuck</label><span class="val" id="velarTuckVal"></span></div>
+      <input id="velarTuck" type="range" min="0" max="1.4" step="0.01" value="0.58">
+      <div class="row"><label for="radialFolds">Radial folds</label><span class="val" id="radialFoldsVal"></span></div>
+      <input id="radialFolds" type="range" min="0" max="1.2" step="0.01" value="0.42">
+    </div>
+
+    <div class="group">
+      <div class="group-title"><span>Behavior</span><span id="behaviorLabel">cruise</span></div>
+      <div class="row"><label for="behaviorMode">Behavior control</label><span class="val" id="behaviorModeLabel">Auto</span></div>
+      <select id="behaviorMode">
+        <option value="auto">Auto state machine</option>
+        <option value="manual">Manual state hold</option>
+      </select>
+      <div class="row" style="margin-top:10px"><label for="behaviorState">Behavior state</label><span class="val" id="behaviorStateLabel">Cruise</span></div>
+      <select id="behaviorState">
+        <option value="rest">Rest</option>
+        <option value="cruise">Cruise</option>
+        <option value="alert">Alert</option>
+        <option value="turn">Turn</option>
+        <option value="recovery">Recovery</option>
+      </select>
+      <div class="row"><label for="energy">Energy</label><span class="val" id="energyVal"></span></div>
+      <input id="energy" type="range" min="0" max="1" step="0.01" value="0.82">
+      <div class="row"><label for="alertness">Alertness</label><span class="val" id="alertnessVal"></span></div>
+      <input id="alertness" type="range" min="0" max="1" step="0.01" value="0.18">
+      <div class="row"><label for="fatigue">Fatigue</label><span class="val" id="fatigueVal"></span></div>
+      <input id="fatigue" type="range" min="0" max="1" step="0.01" value="0.08">
+    </div>
+
+    <div class="group">
+      <div class="group-title"><span>Look</span><span id="lookLabel">bio</span></div>
+      <div class="row"><label for="pointSize">Point size</label><span class="val" id="pointSizeVal"></span></div>
+      <input id="pointSize" type="range" min="0.5" max="8" step="0.1" value="2.5">
+      <div class="row"><label for="glow">Glow</label><span class="val" id="glowVal"></span></div>
+      <input id="glow" type="range" min="0" max="2" step="0.01" value="0.95">
+      <div class="row"><label for="threshold">Bloom threshold</label><span class="val" id="thresholdVal"></span></div>
+      <input id="threshold" type="range" min="0" max="1" step="0.01" value="0.33">
+      <div class="row"><label for="aberration">Aberration</label><span class="val" id="aberrationVal"></span></div>
+      <input id="aberration" type="range" min="0" max="0.02" step="0.0005" value="0.0030">
+      <div class="row"><label for="hueShift">Hue shift</label><span class="val" id="hueShiftVal"></span></div>
+      <input id="hueShift" type="range" min="-120" max="120" step="1" value="0">
+    </div>
+
+    <div class="group">
+      <div class="group-title"><span>Camera</span><span id="fpsLabel">0 fps</span></div>
+      <div class="row"><label for="zoom">Zoom</label><span class="val" id="zoomVal"></span></div>
+      <input id="zoom" type="range" min="0.4" max="3" step="0.01" value="1.0">
+      <div class="row"><label for="rotate">Auto rotate</label><span class="val" id="rotateVal"></span></div>
+      <input id="rotate" type="range" min="-2" max="2" step="0.01" value="0.24">
+      <div class="row"><label for="tilt">Tilt</label><span class="val" id="tiltVal"></span></div>
+      <input id="tilt" type="range" min="-1.2" max="1.2" step="0.01" value="-0.12">
+      <div class="btn-row" style="margin-top:10px">
+        <button id="resetBtn">Reset view</button>
+        <button id="regenBtn">Rebuild</button>
+        <button id="shotBtn" class="accent">PNG</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <canvas id="gl"></canvas>
+    <div class="error" id="errorBox">WebGL2 ist hier nicht verfügbar.</div>
+    <button class="fab" id="togglePanel">☰</button>
+    <div class="hud">
+      <span class="chip" id="chipA">Bell</span>
+      <span class="chip" id="chipB">Tentacles</span>
+      <span class="chip" id="chipC">Glow</span>
+    </div>
+  </main>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+  const ui = {
+    bellRadius: $('bellRadius'), bellHeight: $('bellHeight'), undersideLift: $('undersideLift'), density: $('density'),
+    oralArms: $('oralArms'), tentacles: $('tentacles'), tentacleLength: $('tentacleLength'), curl: $('curl'),
+    movementMode: $('movementMode'), movementModeLabel: $('movementModeLabel'),
+    pulseSpeed: $('pulseSpeed'), pulseAmount: $('pulseAmount'), sway: $('sway'), turbulence: $('turbulence'), drift: $('drift'),
+    powerStroke: $('powerStroke'), elasticRecoil: $('elasticRecoil'), vortexWake: $('vortexWake'), tentacleInertia: $('tentacleInertia'), currentFlow: $('currentFlow'), bellWave: $('bellWave'), asymmetry: $('asymmetry'),
+    fluidMemory: $('fluidMemory'), phaseCascade: $('phaseCascade'), rimFlutter: $('rimFlutter'), microPulse: $('microPulse'),
+    mesogleaSpring: $('mesogleaSpring'), coastPause: $('coastPause'), vortexCouple: $('vortexCouple'), velarTuck: $('velarTuck'), radialFolds: $('radialFolds'),
+    behaviorMode: $('behaviorMode'), behaviorModeLabel: $('behaviorModeLabel'), behaviorState: $('behaviorState'), behaviorStateLabel: $('behaviorStateLabel'), behaviorLabel: $('behaviorLabel'), energy: $('energy'), alertness: $('alertness'), fatigue: $('fatigue'),
+    pointSize: $('pointSize'), glow: $('glow'), threshold: $('threshold'), aberration: $('aberration'), hueShift: $('hueShift'),
+    zoom: $('zoom'), rotate: $('rotate'), tilt: $('tilt'), resetBtn: $('resetBtn'), regenBtn: $('regenBtn'), shotBtn: $('shotBtn'),
+    fpsLabel: $('fpsLabel'), pointCountLabel: $('pointCountLabel'), shapeLabel: $('shapeLabel'), appendageLabel: $('appendageLabel'), motionLabel: $('motionLabel'), lookLabel: $('lookLabel'),
+    chipA: $('chipA'), chipB: $('chipB'), chipC: $('chipC'),
+    errorBox: $('errorBox'), togglePanel: $('togglePanel')
+  };
+  const valueEls = {};
+  ['bellRadius','bellHeight','undersideLift','density','oralArms','tentacles','tentacleLength','curl','pulseSpeed','pulseAmount','sway','turbulence','drift','powerStroke','elasticRecoil','vortexWake','tentacleInertia','currentFlow','bellWave','asymmetry','fluidMemory','phaseCascade','rimFlutter','microPulse','mesogleaSpring','coastPause','vortexCouple','velarTuck','radialFolds','energy','alertness','fatigue','pointSize','glow','threshold','aberration','hueShift','zoom','rotate','tilt']
+    .forEach(k => valueEls[k] = $(k + 'Val'));
+
+  const canvas = $('gl');
+  const gl = canvas.getContext('webgl2', { antialias:true, alpha:false, premultipliedAlpha:false, preserveDrawingBuffer:true });
+  if (!gl) { ui.errorBox.classList.add('active'); return; }
+
+  const S = {
+    time: 0, fps: 0,
+    params: {
+      bellRadius: 58, bellHeight: 42, undersideLift: 18, density: 52,
+      oralArms: 4, tentacles: 14, tentacleLength: 110, curl: 0.68,
+      movementMode: 'rowing', pulseSpeed: 0.42, pulseAmount: 0.52, sway: 0.85, turbulence: 0.34, drift: 7.2,
+      powerStroke: 0.62, elasticRecoil: 0.58, vortexWake: 0.82, tentacleInertia: 0.88, currentFlow: 0.34, bellWave: 0.46, asymmetry: 0.18,
+      fluidMemory: 0.72, phaseCascade: 0.68, rimFlutter: 0.54, microPulse: 0.32,
+      mesogleaSpring: 0.86, coastPause: 0.42, vortexCouple: 0.82, velarTuck: 0.58, radialFolds: 0.42,
+      pointSize: 2.5, glow: 0.95, threshold: 0.33, aberration: 0.003, hueShift: 0,
+      zoom: 1.0, rotate: 0.24, tilt: -0.12
+    },
+    cam: { yaw: 0, pitch: -0.12 },
+    jelly: { points: [] },
+    motion: { wake: 0, glide: 0, currentX: 0, currentZ: 0, beatSkew: 0, roll: 0, pitch: 0, lateral: 0, shimmer: 0, startVortex: 0, stopVortex: 0, elastic: 0, elasticVel: 0, coast: 0 },
+    behavior: {
+      mode: 'auto',
+      manualState: 'cruise',
+      state: 'cruise',
+      energy: 0.82,
+      alertness: 0.18,
+      fatigue: 0.08,
+      quiescence: 0.22,
+      stateTime: 0,
+      turnHeading: 0,
+      turnSign: 1,
+      turnCooldown: 1.4,
+      pulseMemory: 0
+    }
+  };
+
+  let DPR = 1, W = 1, H = 1;
+  const MAX_POINTS = 220000;
+  const posArray = new Float32Array(MAX_POINTS * 3);
+  const colArray = new Float32Array(MAX_POINTS * 3);
+  let pointCount = 0;
+
+  let vao = null, posBuffer = null, colBuffer = null, quadVAO = null;
+  let pointProgram = null, bloomProgram = null, compositeProgram = null;
+  let fboScene = null, fboBloom1 = null, fboBloom2 = null;
+
+  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+  const lerp = (a,b,t) => a + (b-a) * t;
+  const TAU = Math.PI * 2;
+  const fract = x => x - Math.floor(x);
+
+  function smoothstep01(x){
+    x = clamp(x, 0, 1);
+    return x * x * (3 - 2 * x);
+  }
+
+  function gaussian(x, mu, sigma){
+    const d = (x - mu) / Math.max(sigma, 1e-5);
+    return Math.exp(-(d * d));
+  }
+
+  function asymmetricPulse(phase, contractRatio){
+    if(phase < contractRatio){
+      const x = phase / Math.max(contractRatio, 1e-5);
+      return smoothstep01(x);
+    }
+    const x = (phase - contractRatio) / Math.max(1 - contractRatio, 1e-5);
+    return 1 - smoothstep01(x);
+  }
+
+  function burstPulse(phase){
+    const p1 = gaussian(phase, 0.18, 0.08);
+    const p2 = 0.72 * gaussian(phase, 0.39, 0.07);
+    return clamp(p1 + p2, 0, 1);
+  }
+
+  function modeTitle(mode){
+    return {
+      rowing: 'Rowing glide',
+      jetting: 'Jetting',
+      recapture: 'Passive recapture',
+      hover: 'Hover pulse',
+      escape: 'Escape burst',
+      pacemaker: 'Pacemaker drift'
+    }[mode] || mode;
+  }
+
+  function behaviorTitle(state){
+    return {
+      rest: 'Rest',
+      cruise: 'Cruise',
+      alert: 'Alert',
+      turn: 'Turn',
+      recovery: 'Recovery'
+    }[state] || state;
+  }
+
+  function behaviorProfile(B){
+    const e = B.energy;
+    const a = B.alertness;
+    const f = B.fatigue;
+    const q = B.quiescence;
+    const state = B.state;
+    const base = {
+      freqMul: 1.0,
+      ampMul: 1.0,
+      contractShift: 0.0,
+      recaptureMul: 1.0,
+      swayMul: 1.0,
+      turbMul: 1.0,
+      driftMul: 1.0,
+      thrustMul: 1.0,
+      cupMul: 1.0,
+      tentacleLagMul: 1.0,
+      apexMul: 1.0,
+      shoulderMul: 1.0,
+      rimMul: 1.0,
+      turnStrength: 0.0,
+      sideBias: 0.0,
+      colorShift: 0.0
+    };
+    if(state === 'rest'){
+      base.freqMul = 0.58 + e * 0.12 - q * 0.08;
+      base.ampMul = 0.50 + e * 0.16;
+      base.contractShift = 0.06;
+      base.recaptureMul = 1.16;
+      base.swayMul = 0.78;
+      base.turbMul = 0.72;
+      base.driftMul = 0.42;
+      base.thrustMul = 0.46;
+      base.cupMul = 0.72;
+      base.tentacleLagMul = 1.28;
+      base.apexMul = 0.92;
+      base.shoulderMul = 0.94;
+      base.rimMul = 0.76;
+      base.colorShift = -8;
+    } else if(state === 'cruise'){
+      base.freqMul = 0.92 + e * 0.14 - f * 0.08;
+      base.ampMul = 0.92 + e * 0.10;
+      base.contractShift = 0.0;
+      base.recaptureMul = 1.0;
+      base.swayMul = 1.0;
+      base.turbMul = 1.0;
+      base.driftMul = 0.92;
+      base.thrustMul = 0.96;
+      base.cupMul = 1.0;
+      base.tentacleLagMul = 1.0;
+    } else if(state === 'alert'){
+      base.freqMul = 1.16 + a * 0.32;
+      base.ampMul = 1.06 + a * 0.22;
+      base.contractShift = -0.08;
+      base.recaptureMul = 0.68;
+      base.swayMul = 0.82;
+      base.turbMul = 0.64;
+      base.driftMul = 1.12;
+      base.thrustMul = 1.36;
+      base.cupMul = 1.14;
+      base.tentacleLagMul = 0.78;
+      base.apexMul = 1.12;
+      base.shoulderMul = 1.06;
+      base.rimMul = 1.18;
+      base.colorShift = 14;
+    } else if(state === 'turn'){
+      base.freqMul = 1.0 + a * 0.18;
+      base.ampMul = 0.94 + a * 0.10;
+      base.contractShift = -0.03;
+      base.recaptureMul = 0.9;
+      base.swayMul = 0.92;
+      base.turbMul = 0.84;
+      base.driftMul = 0.88;
+      base.thrustMul = 0.94;
+      base.cupMul = 1.0;
+      base.tentacleLagMul = 0.96;
+      base.apexMul = 1.0;
+      base.shoulderMul = 1.08;
+      base.rimMul = 1.14;
+      base.turnStrength = 0.38 + a * 0.42;
+      base.sideBias = B.turnSign * base.turnStrength;
+      base.colorShift = 6;
+    } else if(state === 'recovery'){
+      base.freqMul = 0.72 + e * 0.10;
+      base.ampMul = 0.64 + e * 0.10;
+      base.contractShift = 0.09;
+      base.recaptureMul = 1.18;
+      base.swayMul = 1.10;
+      base.turbMul = 0.88;
+      base.driftMul = 0.56;
+      base.thrustMul = 0.62;
+      base.cupMul = 0.82;
+      base.tentacleLagMul = 1.34;
+      base.apexMul = 0.96;
+      base.shoulderMul = 0.98;
+      base.rimMul = 0.86;
+      base.colorShift = -14;
+    }
+    return base;
+  }
+
+  function updateBehavior(dt){
+    const B = S.behavior;
+    const t = S.time;
+    const baseShadow = clamp(0.42 + 0.38 * Math.sin(t * 0.17 + 0.4) + 0.16 * Math.sin(t * 0.041 + 2.1), 0, 1);
+    const microDisturbance = clamp(0.5 + 0.5 * Math.sin(t * 0.63 + 1.7), 0, 1);
+    const environmentalAlert = Math.max(0, baseShadow - 0.72) * 2.6 + Math.max(0, microDisturbance - 0.96) * 2.2;
+
+    B.stateTime += dt;
+    B.turnCooldown = Math.max(0, B.turnCooldown - dt);
+
+    if(B.mode === 'manual'){
+      B.state = B.manualState;
+      if(B.state === 'turn' && B.turnCooldown <= 0){
+        B.turnSign *= -1;
+        B.turnCooldown = 1.8;
+      }
+    } else {
+      B.alertness = clamp(B.alertness + environmentalAlert * dt * 0.9 - dt * (0.06 + B.quiescence * 0.05), 0, 1);
+
+      if(B.state === 'rest'){
+        B.energy = clamp(B.energy + dt * 0.055, 0, 1);
+        B.fatigue = clamp(B.fatigue - dt * 0.05, 0, 1);
+        B.quiescence = clamp(B.quiescence + dt * 0.07, 0, 1);
+      } else if(B.state === 'cruise'){
+        B.energy = clamp(B.energy - dt * 0.016 + dt * 0.004 * (1 - B.fatigue), 0, 1);
+        B.fatigue = clamp(B.fatigue + dt * 0.015, 0, 1);
+        B.quiescence = clamp(B.quiescence - dt * 0.03, 0, 1);
+      } else if(B.state === 'alert'){
+        B.energy = clamp(B.energy - dt * 0.05, 0, 1);
+        B.fatigue = clamp(B.fatigue + dt * 0.042, 0, 1);
+        B.quiescence = clamp(B.quiescence - dt * 0.08, 0, 1);
+      } else if(B.state === 'turn'){
+        B.energy = clamp(B.energy - dt * 0.038, 0, 1);
+        B.fatigue = clamp(B.fatigue + dt * 0.028, 0, 1);
+        B.quiescence = clamp(B.quiescence - dt * 0.06, 0, 1);
+        if(B.turnCooldown <= 0){
+          B.turnSign *= -1;
+          B.turnCooldown = 2.1 + 0.7 * Math.sin(t * 0.19 + 1.1) * 0.5;
+        }
+      } else if(B.state === 'recovery'){
+        B.energy = clamp(B.energy + dt * 0.032, 0, 1);
+        B.fatigue = clamp(B.fatigue - dt * 0.06, 0, 1);
+        B.quiescence = clamp(B.quiescence + dt * 0.03, 0, 1);
+        B.alertness = clamp(B.alertness - dt * 0.1, 0, 1);
+      }
+
+      let nextState = B.state;
+      if(B.fatigue > 0.72 || B.energy < 0.22){
+        nextState = 'recovery';
+      } else if(B.alertness > 0.78 && B.energy > 0.28 && B.stateTime > 1.2){
+        nextState = B.turnCooldown < 0.45 ? 'turn' : 'alert';
+      } else if(B.alertness > 0.52 && B.energy > 0.32 && B.stateTime > 0.8){
+        nextState = 'alert';
+      } else if(B.quiescence > 0.62 && B.energy > 0.48 && B.alertness < 0.28 && B.stateTime > 2.0){
+        nextState = 'rest';
+      } else if(B.stateTime > 1.4){
+        nextState = 'cruise';
+      }
+
+      if(nextState !== B.state){
+        B.state = nextState;
+        B.stateTime = 0;
+      }
+    }
+
+    B.turnHeading = lerp(B.turnHeading, B.turnSign > 0 ? Math.PI * 0.5 : -Math.PI * 0.5, dt * 0.9);
+  }
+
+  function computeMotionState(){
+    const P = S.params;
+    const t = S.time;
+    const mode = P.movementMode;
+    const B = S.behavior;
+    const BP = behaviorProfile(B);
+    const stroke = clamp(P.powerStroke, 0, 1);
+    const recoil = clamp(P.elasticRecoil, 0, 1);
+    const wakeGain = clamp(P.vortexWake, 0, 1.4);
+    const inertia = clamp(P.tentacleInertia, 0, 1.6);
+    const fluidMemory = clamp(P.fluidMemory, 0, 1.4);
+    const phaseCascade = clamp(P.phaseCascade, 0, 1.5);
+    const rimFlutter = clamp(P.rimFlutter, 0, 1.4);
+    const microPulse = clamp(P.microPulse, 0, 1);
+    const mesogleaSpring = clamp(P.mesogleaSpring, 0, 1.6);
+    const coastPause = clamp(P.coastPause, 0, 1);
+    const vortexCouple = clamp(P.vortexCouple, 0, 1.5);
+    const velarTuck = clamp(P.velarTuck, 0, 1.4);
+    const radialFolds = clamp(P.radialFolds, 0, 1.2);
+    const livingNoise = microPulse * (
+      0.020 * Math.sin(t * 1.37 + 0.3) +
+      0.013 * Math.sin(t * 2.11 + 2.2) +
+      0.008 * Math.sin(t * 3.73 + 1.1)
+    );
+    const rhythmWander = 0.028 * Math.sin(t * 0.31 + 0.7) + 0.014 * Math.sin(t * 0.73 + 2.4) + livingNoise;
+
+    const baseFreq = (0.22 + P.pulseSpeed * 0.92) * BP.freqMul;
+    let freq = baseFreq;
+    let phase = fract(t * freq + rhythmWander * (0.45 + stroke * 0.55));
+    let contractRatio = 0.35;
+    let pulse = 0;
+    let contraction = 0;
+    let relax = 0;
+    let recapture = 0;
+    let swayMul = 1.0;
+    let turbMul = 1.0;
+    let driftMul = 1.0;
+    let thrust = 0.0;
+    let reopen = 0.0;
+    let cupLift = 0.0;
+    let tentacleLag = 1.0;
+    let refill = 0.0;
+    let coastWindow = 0.0;
+    let startVortexDrive = 0.0;
+    let stopVortexDrive = 0.0;
+
+    const shapeStroke = () => {
+      contractRatio = clamp(contractRatio * lerp(1.08, 0.58, stroke) + BP.contractShift, 0.13, 0.58);
+      const base = asymmetricPulse(phase, contractRatio);
+      const refillStart = contractRatio + (1 - contractRatio) * 0.22;
+      const coastStart = contractRatio + (1 - contractRatio) * (0.58 - coastPause * 0.16);
+      const snap = gaussian(phase, contractRatio * 0.94, 0.045 + contractRatio * 0.16) * 0.24 * stroke;
+      const livingTwitch =
+        microPulse *
+        (0.045 * gaussian(phase, 0.16 + 0.08 * Math.sin(t * 0.47), 0.035) +
+         0.030 * gaussian(phase, 0.52 + 0.05 * Math.sin(t * 0.29 + 1.6), 0.050));
+      contraction = clamp(base + snap + livingTwitch, 0, 1.22);
+      relax = phase > contractRatio ? (1.0 - base) : 0.0;
+      refill = phase > refillStart ? smoothstep01((phase - refillStart) / Math.max(1 - refillStart, 1e-5)) : 0.0;
+      coastWindow = phase > coastStart ? smoothstep01((phase - coastStart) / Math.max(1 - coastStart, 1e-5)) : 0.0;
+      startVortexDrive = gaussian(phase, contractRatio * 0.82, 0.05 + contractRatio * 0.08) * contraction;
+      stopVortexDrive = gaussian(phase, refillStart + (1 - refillStart) * 0.26, 0.09 + coastPause * 0.06) * (0.45 + refill * 0.55);
+      pulse = contraction;
+    };
+
+    if(mode === 'rowing'){
+      contractRatio = 0.42;
+      shapeStroke();
+      recapture = (0.08 + 0.10 * wakeGain) * gaussian(phase, 0.70 + recoil * 0.07, 0.12 + recoil * 0.04);
+      swayMul = 1.22;
+      turbMul = 0.82;
+      driftMul = 0.9;
+      thrust = contraction * (0.78 + stroke * 0.38) + recapture * (0.45 + wakeGain * 0.34);
+      reopen = relax * (0.78 + recoil * 0.48);
+      cupLift = (0.42 + recoil * 0.28) * contraction + (0.14 + wakeGain * 0.16) * recapture;
+      tentacleLag = 0.92 + inertia * 0.42;
+    } else if(mode === 'jetting'){
+      freq *= 1.28;
+      phase = fract(t * freq + rhythmWander * 0.8);
+      contractRatio = 0.22;
+      shapeStroke();
+      swayMul = 0.65;
+      turbMul = 0.42;
+      driftMul = 1.05;
+      recapture = 0.08 * wakeGain * gaussian(phase, 0.58 + recoil * 0.08, 0.10 + recoil * 0.05);
+      thrust = contraction * (1.32 + stroke * 0.62) + recapture * 0.38;
+      reopen = relax * (0.36 + recoil * 0.38);
+      cupLift = (0.58 + recoil * 0.28) * contraction;
+      tentacleLag = 0.48 + inertia * 0.34;
+    } else if(mode === 'recapture'){
+      contractRatio = 0.36;
+      shapeStroke();
+      const base = contraction;
+      const rebound = (0.18 + wakeGain * 0.16) * gaussian(phase, 0.68 + recoil * 0.10, 0.11 + recoil * 0.06);
+      pulse = clamp(base + rebound, 0, 1.16);
+      recapture = rebound;
+      swayMul = 0.96;
+      turbMul = 0.55;
+      driftMul = 0.8;
+      thrust = contraction * 0.72 + recapture * (0.88 + wakeGain * 0.42);
+      reopen = relax * (0.92 + recoil * 0.44) + recapture * 0.48;
+      cupLift = (0.38 + recoil * 0.22) * contraction + (0.52 + wakeGain * 0.28) * recapture;
+      tentacleLag = 0.82 + inertia * 0.48;
+    } else if(mode === 'hover'){
+      freq *= 0.9;
+      phase = fract(t * freq + rhythmWander);
+      contractRatio = 0.34;
+      shapeStroke();
+      const base = contraction;
+      pulse = 0.28 + base * 0.48;
+      contraction = base * 0.58;
+      relax = relax * 0.7;
+      swayMul = 0.72;
+      turbMul = 0.74;
+      driftMul = 0.38;
+      thrust = contraction * 0.34;
+      recapture = 0.06 * wakeGain * gaussian(phase, 0.78, 0.18);
+      reopen = relax * (0.56 + recoil * 0.42);
+      cupLift = (0.22 + recoil * 0.18) * contraction;
+      tentacleLag = 1.02 + inertia * 0.52;
+    } else if(mode === 'escape'){
+      const train = clamp(Math.sin(TAU * t * (0.065 + P.pulseSpeed * 0.055)), 0, 1);
+      freq *= 1.75;
+      phase = fract(t * freq + rhythmWander * 1.2);
+      const burst = burstPulse(phase) * train;
+      pulse = burst;
+      contraction = burst;
+      relax = gaussian(phase, 0.56, 0.12) * train;
+      recapture = 0.10 * wakeGain * gaussian(phase, 0.68 + recoil * 0.08, 0.10);
+      swayMul = 0.54;
+      turbMul = 0.36;
+      driftMul = 1.02;
+      thrust = contraction * (1.65 + stroke * 0.74) + recapture * 0.44;
+      reopen = relax * (0.34 + recoil * 0.30);
+      cupLift = (0.72 + recoil * 0.22) * contraction;
+      tentacleLag = 0.38 + inertia * 0.28;
+    } else if(mode === 'pacemaker'){
+      const wobble = 0.08 * Math.sin(TAU * 0.17 * t) + 0.05 * Math.sin(TAU * 0.41 * t + 1.4);
+      phase = fract((t * freq) + wobble);
+      contractRatio = 0.32 + 0.03 * Math.sin(t * 0.23 + 0.9);
+      shapeStroke();
+      swayMul = 1.04;
+      turbMul = 0.88;
+      driftMul = 0.66;
+      recapture = (0.06 + wakeGain * 0.10) * gaussian(phase, 0.74 + recoil * 0.05, 0.15);
+      thrust = contraction * (0.70 + stroke * 0.30) + recapture * 0.48;
+      reopen = relax * (0.66 + recoil * 0.46);
+      cupLift = (0.38 + recoil * 0.24) * contraction;
+      tentacleLag = 0.8 + inertia * 0.44;
+    }
+
+    const livingAsymmetry = P.asymmetry * (
+      0.45 * Math.sin(t * 0.37 + 1.2) +
+      0.32 * Math.sin(t * 0.19 + 3.1) +
+      0.23 * Math.sin(t * 0.91 + phase * TAU)
+    );
+
+    return {
+      mode,
+      title: modeTitle(mode),
+      freq,
+      phase,
+      contractRatio,
+      pulse,
+      contraction: contraction * BP.ampMul,
+      relax,
+      refill,
+      coastWindow: coastWindow * coastPause,
+      startVortexDrive: startVortexDrive * vortexCouple,
+      stopVortexDrive: stopVortexDrive * vortexCouple,
+      recapture: recapture * BP.recaptureMul,
+      swayMul: swayMul * BP.swayMul,
+      turbMul: turbMul * BP.turbMul,
+      driftMul: driftMul * BP.driftMul,
+      thrust: thrust * BP.thrustMul,
+      reopen,
+      cupLift: cupLift * BP.cupMul,
+      tentacleLag: tentacleLag * BP.tentacleLagMul,
+      behaviorState: B.state,
+      behaviorTitle: behaviorTitle(B.state),
+      apexMul: BP.apexMul,
+      shoulderMul: BP.shoulderMul,
+      rimMul: BP.rimMul,
+      sideBias: BP.sideBias + livingAsymmetry,
+      turnStrength: BP.turnStrength,
+      turnHeading: B.turnHeading,
+      colorShift: BP.colorShift,
+      stroke,
+      recoil,
+      wakeGain,
+      inertia,
+      currentFlow: P.currentFlow,
+      bellWave: P.bellWave,
+      asymmetry: P.asymmetry,
+      fluidMemory,
+      phaseCascade,
+      rimFlutter,
+      microPulse,
+      mesogleaSpring,
+      coastPause,
+      vortexCouple,
+      velarTuck,
+      radialFolds,
+      energy: B.energy,
+      alertness: B.alertness,
+      fatigue: B.fatigue
+    };
+  }
+
+
+  function computeBellCapOffsets(p, P, M, contract, reopen, recapture, t){
+    const s = clamp(p.v / (Math.PI / 1.85), 0, 1);
+    const rim = Math.pow(s, 1.85);
+    const shoulder = gaussian(s, 0.56, 0.16);
+    const mid = gaussian(s, 0.34, 0.18);
+    const crown = gaussian(s, 0.10, 0.12);
+    const cascade = 1.0 + M.phaseCascade * 1.85;
+    const bellTravel = Math.sin(M.phase * TAU - s * (1.25 + M.bellWave * 2.35) * cascade + p.phase * 0.08);
+    const secondaryTravel = Math.sin(M.phase * TAU * 0.72 - s * (3.1 + M.phaseCascade * 2.2) + p.u * 0.7);
+    const waveBias = M.bellWave * (bellTravel * 0.78 + secondaryTravel * 0.22) * (0.10 + rim * 0.22 + shoulder * 0.10);
+    const lappetPattern =
+      Math.sin(p.u * 8.0 + M.phase * TAU * 1.28 - s * 2.4 + t * 0.23) *
+      (0.65 + 0.35 * Math.sin(p.u * 5.0 - t * 0.41 + p.phase));
+    const lappetFlutter = M.rimFlutter * Math.pow(rim, 1.45) * lappetPattern;
+    const radialFoldPattern = Math.sin(p.u * 16.0 + p.phase * 0.33) * Math.sin(M.phase * TAU - s * (2.8 + M.phaseCascade));
+    const radialFold = M.radialFolds * radialFoldPattern * (0.18 + shoulder * 0.42 + rim * 0.86);
+    const velarFold = M.velarTuck * Math.pow(rim, 2.25) * (clamp(contract, 0, 1.4) - M.refill * 0.58);
+    const localContract = contract * clamp(1.0 + waveBias, 0.58, 1.38);
+    const localReopen = reopen * clamp(1.0 - waveBias * 0.75, 0.62, 1.34);
+    const localRecap = recapture * clamp(1.0 + waveBias * 0.55, 0.72, 1.28);
+    const elasticRebound = S.motion.elastic * M.mesogleaSpring * (0.26 * crown + 0.54 * mid + 0.82 * shoulder + 0.52 * rim);
+
+    const drdv = Math.cos(p.v) * P.bellRadius;
+    const dydv = -Math.sin(p.v) * P.bellHeight;
+    const invLen = 1.0 / Math.max(Math.hypot(drdv, dydv), 1e-5);
+    const tr = drdv * invLen;
+    const ty = dydv * invLen;
+    const nr = -ty;
+    const ny = tr;
+
+    const sideWave = Math.cos(p.u - M.turnHeading);
+    const sideMix = 1.0 + M.sideBias * sideWave * (0.22 + 0.78 * shoulder + 1.05 * rim);
+    const shellContract = localContract * (0.22 * crown * M.apexMul + 0.78 * mid + 1.15 * shoulder * M.shoulderMul + 1.35 * rim * M.rimMul) * sideMix;
+    const shellOpen = localReopen * (0.16 * crown * M.apexMul + 0.46 * mid + 0.88 * shoulder * M.shoulderMul + 1.02 * rim * M.rimMul) * (1.0 - M.sideBias * sideWave * 0.12);
+    const shellRecap = localRecap * (0.10 * mid + 0.36 * shoulder * M.shoulderMul + 0.92 * rim * M.rimMul);
+
+    const tangential =
+      (-shellContract * (0.058 * P.bellRadius + 0.032 * P.bellHeight)) +
+      ((shellOpen + 0.82 * shellRecap + elasticRebound * 0.35) * (0.031 * P.bellRadius + 0.018 * P.bellHeight)) -
+      velarFold * (0.034 * P.bellRadius);
+
+    const apexDimple = -localContract * crown * M.apexMul * (0.17 * P.bellHeight) + elasticRebound * crown * (0.045 * P.bellHeight);
+    const shoulderBulge = localContract * shoulder * M.shoulderMul * (0.11 * P.bellHeight) - elasticRebound * shoulder * (0.035 * P.bellHeight);
+    const crownReinflate = (localReopen * 0.09 + localRecap * 0.05 + elasticRebound * 0.04) * crown * P.bellHeight;
+    const rimCurl =
+      (-localContract * rim * M.rimMul * (0.14 * P.bellHeight)) +
+      ((localReopen + localRecap * 0.7) * rim * M.rimMul * (0.08 * P.bellHeight)) +
+      (M.turnStrength * sideWave * rim * (0.05 * P.bellHeight)) +
+      (lappetFlutter * (0.045 * P.bellHeight + 0.026 * P.bellRadius)) -
+      (velarFold * (0.10 * P.bellHeight)) +
+      (radialFold * (0.025 * P.bellHeight));
+
+    const asymmetricFlutter = Math.sin(t * 1.15 + p.u * 2.0 + p.phase * 0.25) *
+      P.turbulence * M.turbMul * (0.06 * P.bellRadius) * (0.12 + 0.55 * rim + 0.18 * shoulder);
+    const microShiver = M.microPulse * Math.sin(t * 3.1 + p.u * 3.0 + p.phase * 0.4) *
+      (0.015 * P.bellRadius) * (0.18 + 0.82 * rim);
+
+    const normal = apexDimple + shoulderBulge + crownReinflate + rimCurl + asymmetricFlutter + microShiver;
+    const radialOffset = tangential * tr + normal * nr + lappetFlutter * rim * (0.028 * P.bellRadius) + radialFold * (0.015 * P.bellRadius);
+    const verticalOffset = tangential * ty + normal * ny;
+
+    return { s, rim, shoulder, mid, crown, radialOffset, verticalOffset };
+  }
+
+  function hslToRgb(h, s, l){
+    h = ((h % 360) + 360) % 360;
+    h /= 360;
+    let r,g,b;
+    if(s === 0) { r = g = b = l; }
+    else {
+      const hue2rgb = (p,q,t) => {
+        if(t < 0) t += 1;
+        if(t > 1) t -= 1;
+        if(t < 1/6) return p + (q-p)*6*t;
+        if(t < 1/2) return q;
+        if(t < 2/3) return p + (q-p)*(2/3 - t)*6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p,q,h + 1/3);
+      g = hue2rgb(p,q,h);
+      b = hue2rgb(p,q,h - 1/3);
+    }
+    return [r,g,b];
+  }
+
+  function buildProjMatrix(out, fovy, aspect, near, far){
+    const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+    out.set([
+      f / aspect,0,0,0,
+      0,f,0,0,
+      0,0,(far + near) * nf,-1,
+      0,0,(2 * far * near) * nf,0
+    ]);
+  }
+
+  function buildViewMatrix(){
+    const out = new Float32Array(16);
+    const cx = Math.cos(S.cam.pitch), sx = Math.sin(S.cam.pitch), cy = Math.cos(S.cam.yaw), sy = Math.sin(S.cam.yaw);
+    out.set([
+      cy, sx * sy, cx * sy, 0,
+      0,  cx,     -sx,     0,
+      -sy, sx * cy, cx * cy, 0,
+      0, 0, -240 / S.params.zoom, 1
+    ]);
+    return out;
+  }
+
+  function compileShader(src, type){
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+    return sh;
+  }
+
+  function linkProgram(vs, fs){
+    const p = gl.createProgram();
+    gl.attachShader(p, vs); gl.attachShader(p, fs); gl.linkProgram(p);
+    if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    return p;
+  }
+
+  function createFBO(w, h, depth){
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    let rb = null;
+    if(depth){
+      rb = gl.createRenderbuffer();
+      gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { fb, tex, rb, w, h };
+  }
+
+  function disposeFBO(f){
+    if(!f) return;
+    gl.deleteFramebuffer(f.fb); gl.deleteTexture(f.tex); if(f.rb) gl.deleteRenderbuffer(f.rb);
+  }
+
+  function initFBOs(){
+    disposeFBO(fboScene); disposeFBO(fboBloom1); disposeFBO(fboBloom2);
+    fboScene = createFBO(canvas.width, canvas.height, true);
+    fboBloom1 = createFBO(Math.max(2, canvas.width >> 1), Math.max(2, canvas.height >> 1), false);
+    fboBloom2 = createFBO(Math.max(2, canvas.width >> 1), Math.max(2, canvas.height >> 1), false);
+  }
+
+  function initGL(){
+    const pointVS = `#version 300 es
+      precision highp float;
+      layout(location=0) in vec3 aPos;
+      layout(location=1) in vec3 aColor;
+      uniform mat4 uProj;
+      uniform mat4 uView;
+      uniform float uPointSize;
+      out vec3 vColor;
+      void main(){
+        vec4 mv = uView * vec4(aPos, 1.0);
+        gl_Position = uProj * mv;
+        float d = max(1.0, -mv.z);
+        gl_PointSize = max(1.0, uPointSize * 250.0 / d);
+        vColor = aColor;
+      }`;
+
+    const pointFS = `#version 300 es
+      precision highp float;
+      in vec3 vColor;
+      uniform float uOpacity;
+      out vec4 fragColor;
+      void main(){
+        vec2 p = gl_PointCoord - 0.5;
+        float d = length(p);
+        if(d > 0.5) discard;
+        float alpha = 1.0 - smoothstep(0.18, 0.5, d);
+        fragColor = vec4(vColor, alpha * uOpacity);
+      }`;
+
+    const quadVS = `#version 300 es
+      precision highp float;
+      layout(location=0) in vec2 aPos;
+      out vec2 vUV;
+      void main(){ vUV = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+    const bloomFS = `#version 300 es
+      precision highp float;
+      in vec2 vUV; out vec4 fragColor;
+      uniform sampler2D uTex;
+      uniform vec2 uDir;
+      uniform float uThreshold;
+      uniform int uPass;
+      void main(){
+        vec2 ts = 1.0 / vec2(textureSize(uTex, 0));
+        float weights[5] = float[](0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+        vec3 sum = vec3(0.0);
+        float ws = 0.0;
+        for(int i=-4;i<=4;i++){
+          vec3 s = texture(uTex, vUV + uDir * ts * float(i) * 2.0).rgb;
+          float w = weights[abs(i)];
+          if(uPass == 0){
+            float br = dot(s, vec3(0.299, 0.587, 0.114));
+            s *= smoothstep(uThreshold, uThreshold + 0.2, br);
+          }
+          sum += s * w;
+          ws += w;
+        }
+        fragColor = vec4(sum / max(ws, 0.0001), 1.0);
+      }`;
+
+    const compositeFS = `#version 300 es
+      precision highp float;
+      in vec2 vUV; out vec4 fragColor;
+      uniform sampler2D uScene;
+      uniform sampler2D uBloom;
+      uniform float uGlow;
+      uniform float uAberration;
+      vec3 aces(vec3 x){
+        const float a = 2.51;
+        const float b = 0.03;
+        const float c = 2.43;
+        const float d = 0.59;
+        const float e = 0.14;
+        return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+      }
+      void main(){
+        vec3 scene;
+        if(uAberration > 0.0001){
+          vec2 dir = (vUV - 0.5) * uAberration;
+          scene.r = texture(uScene, vUV + dir).r;
+          scene.g = texture(uScene, vUV).g;
+          scene.b = texture(uScene, vUV - dir).b;
+        } else {
+          scene = texture(uScene, vUV).rgb;
+        }
+        vec3 bloom = texture(uBloom, vUV).rgb;
+        fragColor = vec4(aces(scene + bloom * uGlow), 1.0);
+      }`;
+
+    pointProgram = linkProgram(compileShader(pointVS, gl.VERTEX_SHADER), compileShader(pointFS, gl.FRAGMENT_SHADER));
+    bloomProgram = linkProgram(compileShader(quadVS, gl.VERTEX_SHADER), compileShader(bloomFS, gl.FRAGMENT_SHADER));
+    compositeProgram = linkProgram(compileShader(quadVS, gl.VERTEX_SHADER), compileShader(compositeFS, gl.FRAGMENT_SHADER));
+
+    posBuffer = gl.createBuffer();
+    colBuffer = gl.createBuffer();
+    vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, MAX_POINTS * 3 * 4, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, colBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, MAX_POINTS * 3 * 4, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+
+    quadVAO = gl.createVertexArray();
+    gl.bindVertexArray(quadVAO);
+    const q = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, q);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+  }
+
+  function resize(){
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    const rect = canvas.getBoundingClientRect();
+    W = Math.max(1, Math.floor(rect.width));
+    H = Math.max(1, Math.floor(rect.height));
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    initFBOs();
+  }
+
+  function rebuildJellyfish(){
+    const P = S.params;
+    const pts = [];
+    const density = Math.max(18, P.density | 0);
+    const ringSteps = density;
+    const latSteps = Math.max(8, Math.floor(density * 0.55));
+
+    for(let iu = 0; iu < ringSteps; iu++){
+      const u = (iu / ringSteps) * Math.PI * 2;
+      for(let iv = 0; iv < latSteps; iv++){
+        const v = (iv / (latSteps - 1)) * (Math.PI / 1.85);
+        const r = Math.sin(v) * P.bellRadius;
+        const y = Math.cos(v) * P.bellHeight;
+        pts.push({
+          baseX: Math.cos(u) * r,
+          baseY: y + P.undersideLift,
+          baseZ: Math.sin(u) * r,
+          u, v,
+          kind: 0,
+          phase: Math.sin(u * 2.0) * 0.9 + v * 1.7,
+          weight: 0.5 + 0.5 * Math.sin(v),
+          colorBase: 194 + (v / Math.PI) * 26
+        });
+      }
+    }
+
+    const oralArms = Math.max(2, P.oralArms | 0);
+    for(let a = 0; a < oralArms; a++){
+      const u = (a / oralArms) * Math.PI * 2 + Math.PI / oralArms;
+      const samples = Math.max(20, Math.floor(P.tentacleLength * 0.45));
+      for(let i = 0; i < samples; i++){
+        const t = i / (samples - 1);
+        const radius = lerp(P.bellRadius * 0.22, P.bellRadius * 0.06, t);
+        pts.push({
+          baseX: Math.cos(u) * radius,
+          baseY: P.undersideLift - t * P.tentacleLength * 0.58,
+          baseZ: Math.sin(u) * radius,
+          u, v: t,
+          kind: 1,
+          phase: t * 6.0 + a * 0.8,
+          weight: 1.0 - t * 0.55,
+          colorBase: 228 + t * 24
+        });
+      }
+    }
+
+    const tentacles = Math.max(4, P.tentacles | 0);
+    for(let tIndex = 0; tIndex < tentacles; tIndex++){
+      const u = (tIndex / tentacles) * Math.PI * 2;
+      const steps = Math.max(18, Math.floor(P.tentacleLength * 0.52));
+      for(let i = 0; i < steps; i++){
+        const t = i / (steps - 1);
+        const radius = lerp(P.bellRadius * 0.32, P.bellRadius * 0.04, t);
+        pts.push({
+          baseX: Math.cos(u) * radius,
+          baseY: P.undersideLift - t * P.tentacleLength,
+          baseZ: Math.sin(u) * radius,
+          u, v: t,
+          kind: 2,
+          phase: t * 8.0 + tIndex * 0.41,
+          weight: 1.0 - t,
+          colorBase: 266 + t * 36
+        });
+      }
+    }
+
+    S.jelly.points = pts;
+    pointCount = Math.min(pts.length, MAX_POINTS);
+    ui.pointCountLabel.textContent = pointCount + ' pts';
+  }
+
+  function updateHydrodynamics(M, dt){
+    const P = S.params;
+    const motion = S.motion;
+    const memory = clamp(M.fluidMemory, 0, 1.4);
+    const startTarget = Math.max(0, M.startVortexDrive * (0.8 + M.stroke * 0.6));
+    const stopTarget = Math.max(0, M.stopVortexDrive * (0.55 + M.recoil * 0.65 + M.coastPause * 0.28));
+    motion.startVortex += (startTarget - motion.startVortex) * (1 - Math.exp(-dt * (8.0 + M.stroke * 8.0)));
+    motion.stopVortex += (stopTarget - motion.stopVortex) * (1 - Math.exp(-dt * (2.0 + M.recoil * 3.2) / (1 + memory * 0.35)));
+
+    const elasticTarget = (M.reopen + M.refill * 0.55 - M.contraction * 0.42) * M.mesogleaSpring;
+    const spring = 7.5 + M.mesogleaSpring * 5.5;
+    const damping = 3.2 - Math.min(1.8, M.mesogleaSpring * 0.72);
+    motion.elasticVel += (elasticTarget - motion.elastic) * spring * dt;
+    motion.elasticVel *= Math.exp(-damping * dt);
+    motion.elastic += motion.elasticVel * dt;
+    motion.elastic = clamp(motion.elastic, -0.55, 0.85);
+
+    motion.coast += (M.coastWindow - motion.coast) * (1 - Math.exp(-dt * (1.0 + M.coastPause * 1.4)));
+
+    const drive = Math.max(0, M.thrust * (0.38 + M.wakeGain * 0.62) + motion.startVortex * 0.55 + motion.stopVortex * 0.72);
+    const wakeRate = drive > motion.wake ? (6.6 + M.stroke * 8.2) / (1 + memory * 0.32) : (0.55 + M.recoil * 1.15) / (1 + memory * 0.92);
+    motion.wake += (drive - motion.wake) * (1 - Math.exp(-dt * wakeRate));
+
+    const glideTarget = (M.thrust * 0.45 + motion.wake * 0.50 + motion.stopVortex * 0.62 + motion.coast * 0.20) * P.drift * M.driftMul;
+    motion.glide += (glideTarget - motion.glide) * (1 - Math.exp(-dt * (0.85 + M.recoil * 1.35) / (1 + memory * 0.65)));
+
+    const current = P.currentFlow;
+    const cx = current * (Math.sin(S.time * 0.19 + 0.8) * 2.1 + Math.sin(S.time * 0.043 + 3.0) * 2.8);
+    const cz = current * (Math.cos(S.time * 0.16 + 1.7) * 1.5 + Math.sin(S.time * 0.057 + 4.1) * 2.0);
+    motion.currentX += (cx - motion.currentX) * (1 - Math.exp(-dt * 0.72 / (1 + memory * 0.35)));
+    motion.currentZ += (cz - motion.currentZ) * (1 - Math.exp(-dt * 0.72 / (1 + memory * 0.35)));
+    motion.beatSkew += ((M.sideBias * 1.8 + current * 0.22 * Math.sin(S.time * 0.29)) - motion.beatSkew) * (1 - Math.exp(-dt * 1.05 / (1 + memory * 0.5)));
+    motion.roll += ((motion.beatSkew * 0.10 + motion.currentX * 0.012 + Math.sin(S.time * 0.23) * M.asymmetry * 0.025) - motion.roll) * (1 - Math.exp(-dt * 0.72 / (1 + memory * 0.75)));
+    motion.pitch += (((M.thrust - M.relax * 0.5 + motion.stopVortex * 0.35 - motion.coast * 0.16) * 0.025 + motion.wake * 0.006) - motion.pitch) * (1 - Math.exp(-dt * 1.1 / (1 + memory * 0.6)));
+    motion.lateral += ((motion.currentX * 0.18 + M.sideBias * 0.65) - motion.lateral) * (1 - Math.exp(-dt * 0.58 / (1 + memory * 0.9)));
+    motion.shimmer += ((M.microPulse * (0.5 + 0.5 * Math.sin(S.time * 1.7 + M.phase * TAU))) - motion.shimmer) * (1 - Math.exp(-dt * 2.4));
+  }
+
+  function updateJellyfish(dt){
+    const P = S.params;
+    const t = S.time;
+    const M = computeMotionState();
+    updateHydrodynamics(M, dt);
+    const pts = S.jelly.points;
+    const contract = P.pulseAmount * M.contraction;
+    const reopen = P.pulseAmount * M.reopen;
+    const recapture = P.pulseAmount * M.recapture;
+    const baseBob = Math.sin(t * (0.16 + M.freq * 0.12)) * P.drift * 0.28 * M.driftMul;
+    const swimLift = (S.motion.glide - M.relax * P.drift * 0.10 + M.recapture * P.drift * 0.26 + S.motion.stopVortex * P.drift * 0.22) * 1.08;
+    const swayAmp = P.sway * M.swayMul;
+    const wakePull = S.motion.wake * (0.50 + M.wakeGain * 0.38) + S.motion.startVortex * 0.46 + S.motion.stopVortex * 0.68;
+    const currentX = S.motion.currentX;
+    const currentZ = S.motion.currentZ;
+
+    for(let i = 0; i < pointCount; i++){
+      const p = pts[i];
+      let x = p.baseX;
+      let y = p.baseY;
+      let z = p.baseZ;
+
+      if(p.kind === 0){
+        const bell = computeBellCapOffsets(p, P, M, contract, reopen, recapture, t);
+        const azLen = Math.max(Math.hypot(p.baseX, p.baseZ), 1e-5);
+        const ax = p.baseX / azLen;
+        const az = p.baseZ / azLen;
+        const circumBreathing = Math.sin(t * 1.22 + p.phase + M.phase * 4.0) * P.turbulence * M.turbMul * (0.22 + bell.mid * 0.65 + bell.rim * 1.3);
+        const membraneRipple = Math.sin(t * 1.95 + p.v * 2.6 + p.u * 0.6 + M.phase * TAU * 0.35) * 0.55 * P.turbulence * (0.12 + bell.shoulder + bell.rim);
+        const cupShift = M.cupLift * (0.18 * bell.crown + 0.55 * bell.mid + 1.25 * bell.rim) * (0.08 * P.bellHeight + 0.015 * P.bellRadius);
+        const currentSlip = (0.06 + bell.rim * 0.16) * P.currentFlow;
+        x += ax * (bell.radialOffset + circumBreathing + membraneRipple) + currentX * currentSlip;
+        z += az * (bell.radialOffset + circumBreathing + membraneRipple) + currentZ * currentSlip;
+        y += baseBob + swimLift + bell.verticalOffset + cupShift + S.motion.elastic * (0.55 * bell.crown + 0.32 * bell.mid - 0.18 * bell.rim) * P.bellHeight;
+        y += Math.cos(t * 1.35 + p.v * 2.1) * P.pulseAmount * 0.82 * (0.16 + bell.rim * 0.72 + bell.shoulder * 0.35);
+      } else if(p.kind === 1){
+        const lag = (0.18 + p.v * 0.85) * M.tentacleLag + M.inertia * p.v * (0.9 + wakePull * 0.10);
+        const flowDelay = wakePull * p.v * (1.4 + p.v * 1.8) + M.phaseCascade * p.v * 1.9;
+        const wave1 = Math.sin(t * (0.52 + M.freq * 0.78) - p.v * (6.2 + M.inertia * 2.2 + M.phaseCascade * 2.6) + p.phase + lag - flowDelay) * (4.4 + p.v * 12.0) * swayAmp;
+        const wave2 = Math.cos(t * 0.38 - p.v * (8.0 + M.inertia * 3.5 + M.phaseCascade * 2.2) + p.phase + flowDelay * 0.35) * (2.0 + p.v * 5.4) * swayAmp;
+        const tipWhip = M.microPulse * Math.sin(t * 2.35 - p.v * 12.0 + p.phase + S.motion.shimmer * 2.0) * p.v * p.v * (2.2 + p.v * 5.2);
+        const twist = Math.sin(t * 0.86 + p.v * 10.0 + p.phase + M.phase * 5.0) * P.curl * (1.2 + p.v * 6.0);
+        const pulseDrag = (contract + S.motion.startVortex * 0.22) * (1.0 + p.v * 4.5) * 2.0;
+        const reopenSpread = (reopen + recapture * 0.8 + S.motion.stopVortex * 0.34 + S.motion.coast * 0.18) * (1.0 - p.v * 0.45) * 3.1;
+        const rootInset = (-contract * (0.085 * P.bellRadius) + (reopen + recapture * 0.8) * (0.04 * P.bellRadius)) * (1.0 - p.v * 0.55);
+        const rootLift = (contract * (0.11 * P.bellHeight) - reopen * (0.03 * P.bellHeight) + recapture * (0.05 * P.bellHeight)) * (1.0 - p.v * 0.65);
+        x += Math.cos(p.u) * rootInset + Math.cos(p.u - M.turnHeading) * M.turnStrength * (1.8 + p.v * 1.2);
+        z += Math.sin(p.u) * rootInset + Math.sin(p.u - M.turnHeading) * M.turnStrength * (1.1 + p.v * 0.9);
+        x += Math.cos(p.u + twist * 0.07) * (wave1 * 0.22 + reopenSpread - pulseDrag * 0.18) + Math.sin(p.u * 1.6 + p.phase) * wave2 * 0.08;
+        z += Math.sin(p.u + twist * 0.07) * (wave1 * 0.22 + reopenSpread - pulseDrag * 0.18) + Math.cos(p.u * 1.4 + p.phase) * wave2 * 0.08;
+        x += Math.cos(p.u + twist * 0.11 + Math.PI * 0.5) * tipWhip * 0.28;
+        z += Math.sin(p.u + twist * 0.11 + Math.PI * 0.5) * tipWhip * 0.28;
+        x += currentX * (0.20 + p.v * 0.72) + Math.cos(p.u - M.turnHeading) * S.motion.beatSkew * (0.12 + p.v * 0.18);
+        z += currentZ * (0.16 + p.v * 0.62) + Math.sin(p.u - M.turnHeading) * S.motion.beatSkew * (0.09 + p.v * 0.12);
+        y += baseBob + swimLift + rootLift - pulseDrag * (0.6 + p.v * 0.8) + reopenSpread * 0.52 + S.motion.elastic * (1.0 - p.v) * 1.6;
+        y += Math.cos(t * 0.96 - p.v * 4.2 + p.phase) * (0.9 + p.v * 1.4);
+      } else {
+        const lag = (0.25 + p.v * 1.1) * M.tentacleLag + M.inertia * p.v * (1.2 + wakePull * 0.16);
+        const trail = (3.0 + p.v * 20.0) * swayAmp;
+        const flowDelay = wakePull * p.v * (1.8 + p.v * 2.6) + M.phaseCascade * p.v * 2.8;
+        const wave1 = Math.sin(t * (0.46 + M.freq * 0.76) - p.v * (9.2 + M.contraction * 4.8 + M.inertia * 3.6 + M.phaseCascade * 3.0) + p.phase + lag - flowDelay) * trail;
+        const wave2 = Math.cos(t * 0.32 - p.v * (15.0 + M.inertia * 4.0 + M.phaseCascade * 3.4) + p.phase + flowDelay * 0.42) * trail * 0.44;
+        const tipWhip = M.microPulse * Math.sin(t * 2.75 - p.v * 18.0 + p.phase + S.motion.shimmer * 3.0) * p.v * p.v * (3.2 + p.v * 9.5);
+        const twist = Math.sin(t * 0.74 + p.v * 14.0 + p.phase + M.phase * 6.0) * P.curl * (1.6 + p.v * 11.0);
+        const pulseDrag = (contract + S.motion.startVortex * 0.28) * p.v * (3.0 + p.v * 15.0);
+        const reopenLift = (reopen + recapture * 1.1 + S.motion.stopVortex * 0.42 + S.motion.coast * 0.22) * (1.0 - p.v) * 4.0;
+        const rootInset = (-contract * (0.095 * P.bellRadius) + (reopen + recapture * 0.7) * (0.032 * P.bellRadius)) * (1.0 - p.v * 0.35);
+        const rootLift = (contract * (0.13 * P.bellHeight) + recapture * (0.04 * P.bellHeight)) * (1.0 - p.v * 0.4);
+        x += Math.cos(p.u) * rootInset + Math.cos(p.u - M.turnHeading) * M.turnStrength * (2.4 + p.v * 2.1);
+        z += Math.sin(p.u) * rootInset + Math.sin(p.u - M.turnHeading) * M.turnStrength * (1.4 + p.v * 1.4);
+        x += Math.cos(p.u + twist * 0.06) * (wave1 - pulseDrag * 0.12) + Math.sin(p.u * 1.7 + p.phase) * wave2 * 0.16;
+        z += Math.sin(p.u + twist * 0.06) * (wave1 - pulseDrag * 0.12) + Math.cos(p.u * 1.4 + p.phase) * wave2 * 0.16;
+        x += Math.cos(p.u + twist * 0.12 + Math.PI * 0.5) * tipWhip * 0.34;
+        z += Math.sin(p.u + twist * 0.12 + Math.PI * 0.5) * tipWhip * 0.34;
+        x += currentX * (0.22 + p.v * 1.12) + Math.cos(p.u - M.turnHeading) * S.motion.beatSkew * (0.18 + p.v * 0.42);
+        z += currentZ * (0.18 + p.v * 0.96) + Math.sin(p.u - M.turnHeading) * S.motion.beatSkew * (0.12 + p.v * 0.34);
+        y += baseBob + swimLift + rootLift - pulseDrag + reopenLift + Math.cos(t * 0.76 - p.v * 5.6 + p.phase) * 1.1 + S.motion.elastic * (1.0 - p.v) * 1.2;
+      }
+
+      const bodyFollow = p.kind === 0 ? 0.38 + p.v * 0.22 : 0.62 + p.v * 0.58;
+      const roll = S.motion.roll * bodyFollow;
+      const pitch = S.motion.pitch * bodyFollow;
+      const oldY = y;
+      x += S.motion.lateral * (p.kind === 0 ? 0.08 : 0.18 + p.v * 0.52);
+      y += x * roll - z * pitch;
+      x -= oldY * roll * 0.045;
+      z += oldY * pitch * 0.055;
+
+      const hue = p.colorBase + P.hueShift + M.colorShift + Math.sin(t * 0.2 + p.phase + M.phase * 2.0) * 4.0;
+      const sat = p.kind === 0 ? 0.82 : 0.9;
+      const lum = p.kind === 0 ? 0.72 : (p.kind === 1 ? 0.68 : 0.60 + (1.0 - p.v) * 0.06);
+      const rgb = hslToRgb(hue, sat, lum);
+      const j = i * 3;
+      posArray[j] = x;
+      posArray[j + 1] = y;
+      posArray[j + 2] = z;
+      colArray[j] = rgb[0];
+      colArray[j + 1] = rgb[1];
+      colArray[j + 2] = rgb[2];
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, posArray.subarray(0, pointCount * 3));
+    gl.bindBuffer(gl.ARRAY_BUFFER, colBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, colArray.subarray(0, pointCount * 3));
+  }
+
+  function render(){
+    const proj = new Float32Array(16);
+    buildProjMatrix(proj, Math.PI / 4, canvas.width / canvas.height, 0.1, 1000);
+    const view = buildViewMatrix();
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fboScene.fb);
+    gl.viewport(0, 0, fboScene.w, fboScene.h);
+    gl.clearColor(0.01, 0.02, 0.05, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    gl.enable(gl.DEPTH_TEST);
+
+    gl.useProgram(pointProgram);
+    gl.uniformMatrix4fv(gl.getUniformLocation(pointProgram, 'uProj'), false, proj);
+    gl.uniformMatrix4fv(gl.getUniformLocation(pointProgram, 'uView'), false, view);
+    gl.uniform1f(gl.getUniformLocation(pointProgram, 'uPointSize'), S.params.pointSize);
+    gl.uniform1f(gl.getUniformLocation(pointProgram, 'uOpacity'), 0.88);
+    gl.bindVertexArray(vao);
+    gl.drawArrays(gl.POINTS, 0, pointCount);
+
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+
+    if(S.params.glow > 0.001){
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fboBloom1.fb);
+      gl.viewport(0, 0, fboBloom1.w, fboBloom1.h);
+      gl.clearColor(0,0,0,1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(bloomProgram);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, fboScene.tex);
+      gl.uniform1i(gl.getUniformLocation(bloomProgram, 'uTex'), 0);
+      gl.uniform2f(gl.getUniformLocation(bloomProgram, 'uDir'), 1, 0);
+      gl.uniform1f(gl.getUniformLocation(bloomProgram, 'uThreshold'), S.params.threshold);
+      gl.uniform1i(gl.getUniformLocation(bloomProgram, 'uPass'), 0);
+      gl.bindVertexArray(quadVAO);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fboBloom2.fb);
+      gl.viewport(0, 0, fboBloom2.w, fboBloom2.h);
+      gl.clearColor(0,0,0,1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.bindTexture(gl.TEXTURE_2D, fboBloom1.tex);
+      gl.uniform2f(gl.getUniformLocation(bloomProgram, 'uDir'), 0, 1);
+      gl.uniform1i(gl.getUniformLocation(bloomProgram, 'uPass'), 1);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0.01, 0.02, 0.05, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(compositeProgram);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, fboScene.tex);
+    gl.uniform1i(gl.getUniformLocation(compositeProgram, 'uScene'), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, S.params.glow > 0.001 ? fboBloom2.tex : fboScene.tex);
+    gl.uniform1i(gl.getUniformLocation(compositeProgram, 'uBloom'), 1);
+    gl.uniform1f(gl.getUniformLocation(compositeProgram, 'uGlow'), S.params.glow * 0.85);
+    gl.uniform1f(gl.getUniformLocation(compositeProgram, 'uAberration'), S.params.aberration);
+    gl.bindVertexArray(quadVAO);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  function syncUI(){
+    const P = S.params;
+    valueEls.bellRadius.textContent = P.bellRadius.toFixed(0);
+    valueEls.bellHeight.textContent = P.bellHeight.toFixed(0);
+    valueEls.undersideLift.textContent = P.undersideLift.toFixed(0);
+    valueEls.density.textContent = P.density.toFixed(0);
+    valueEls.oralArms.textContent = P.oralArms.toFixed(0);
+    valueEls.tentacles.textContent = P.tentacles.toFixed(0);
+    valueEls.tentacleLength.textContent = P.tentacleLength.toFixed(0);
+    valueEls.curl.textContent = P.curl.toFixed(2);
+    ui.movementModeLabel.textContent = modeTitle(P.movementMode);
+    valueEls.pulseSpeed.textContent = P.pulseSpeed.toFixed(2);
+    valueEls.pulseAmount.textContent = P.pulseAmount.toFixed(2);
+    valueEls.sway.textContent = P.sway.toFixed(2);
+    valueEls.turbulence.textContent = P.turbulence.toFixed(2);
+    valueEls.drift.textContent = P.drift.toFixed(1);
+    valueEls.powerStroke.textContent = P.powerStroke.toFixed(2);
+    valueEls.elasticRecoil.textContent = P.elasticRecoil.toFixed(2);
+    valueEls.vortexWake.textContent = P.vortexWake.toFixed(2);
+    valueEls.tentacleInertia.textContent = P.tentacleInertia.toFixed(2);
+    valueEls.currentFlow.textContent = P.currentFlow.toFixed(2);
+    valueEls.bellWave.textContent = P.bellWave.toFixed(2);
+    valueEls.asymmetry.textContent = P.asymmetry.toFixed(2);
+    valueEls.fluidMemory.textContent = P.fluidMemory.toFixed(2);
+    valueEls.phaseCascade.textContent = P.phaseCascade.toFixed(2);
+    valueEls.rimFlutter.textContent = P.rimFlutter.toFixed(2);
+    valueEls.microPulse.textContent = P.microPulse.toFixed(2);
+    valueEls.mesogleaSpring.textContent = P.mesogleaSpring.toFixed(2);
+    valueEls.coastPause.textContent = P.coastPause.toFixed(2);
+    valueEls.vortexCouple.textContent = P.vortexCouple.toFixed(2);
+    valueEls.velarTuck.textContent = P.velarTuck.toFixed(2);
+    valueEls.radialFolds.textContent = P.radialFolds.toFixed(2);
+    valueEls.energy.textContent = S.behavior.energy.toFixed(2);
+    valueEls.alertness.textContent = S.behavior.alertness.toFixed(2);
+    valueEls.fatigue.textContent = S.behavior.fatigue.toFixed(2);
+    ui.behaviorModeLabel.textContent = S.behavior.mode === 'auto' ? 'Auto' : 'Manual';
+    ui.behaviorStateLabel.textContent = behaviorTitle(S.behavior.mode === 'manual' ? S.behavior.manualState : S.behavior.state);
+    ui.behaviorLabel.textContent = behaviorTitle(S.behavior.state).toLowerCase();
+    valueEls.pointSize.textContent = P.pointSize.toFixed(1);
+    valueEls.glow.textContent = P.glow.toFixed(2);
+    valueEls.threshold.textContent = P.threshold.toFixed(2);
+    valueEls.aberration.textContent = P.aberration.toFixed(4);
+    valueEls.hueShift.textContent = P.hueShift.toFixed(0) + '°';
+    valueEls.zoom.textContent = P.zoom.toFixed(2);
+    valueEls.rotate.textContent = P.rotate.toFixed(2);
+    valueEls.tilt.textContent = P.tilt.toFixed(2);
+    ui.shapeLabel.textContent = `${P.bellRadius.toFixed(0)} / ${P.bellHeight.toFixed(0)}`;
+    ui.appendageLabel.textContent = `${P.oralArms.toFixed(0)} arms · ${P.tentacles.toFixed(0)} tendrils`;
+    ui.motionLabel.textContent = modeTitle(P.movementMode);
+    ui.lookLabel.textContent = `${P.glow.toFixed(2)} glow`;
+    ui.chipA.textContent = modeTitle(P.movementMode);
+    ui.chipB.textContent = behaviorTitle(S.behavior.state);
+    ui.chipC.textContent = `E ${S.behavior.energy.toFixed(2)} · A ${S.behavior.alertness.toFixed(2)}`;
+    ui.energy.value = S.behavior.energy;
+    ui.alertness.value = S.behavior.alertness;
+    ui.fatigue.value = S.behavior.fatigue;
+    ui.behaviorMode.value = S.behavior.mode;
+    ui.behaviorState.value = S.behavior.manualState;
+  }
+
+  function bindSlider(key, rebuild){
+    const el = ui[key];
+    const apply = () => {
+      S.params[key] = parseFloat(el.value);
+      if(key === 'tilt') S.cam.pitch = S.params.tilt;
+      syncUI();
+      if(rebuild) rebuildJellyfish();
+    };
+    el.addEventListener('input', apply);
+    apply();
+  }
+
+  function applyPreset(name){
+    const P = {
+      classic:{ bellRadius:58, bellHeight:42, undersideLift:18, density:52, oralArms:4, tentacles:14, tentacleLength:110, curl:0.68, movementMode:'rowing', pulseSpeed:0.42, pulseAmount:0.52, sway:0.85, turbulence:0.34, drift:7.2, powerStroke:0.62, elasticRecoil:0.58, vortexWake:0.82, tentacleInertia:0.88, currentFlow:0.34, bellWave:0.46, asymmetry:0.18, fluidMemory:0.72, phaseCascade:0.68, rimFlutter:0.54, microPulse:0.32, mesogleaSpring:0.86, coastPause:0.42, vortexCouple:0.82, velarTuck:0.58, radialFolds:0.42, pointSize:2.5, glow:0.95, threshold:0.33, aberration:0.003, hueShift:0, zoom:1.0, rotate:0.24, tilt:-0.12 },
+      veil:{ bellRadius:74, bellHeight:46, undersideLift:15, density:66, oralArms:8, tentacles:24, tentacleLength:150, curl:1.18, movementMode:'recapture', pulseSpeed:0.24, pulseAmount:0.34, sway:1.24, turbulence:0.18, drift:4.6, powerStroke:0.38, elasticRecoil:0.74, vortexWake:1.08, tentacleInertia:1.26, currentFlow:0.46, bellWave:0.66, asymmetry:0.14, fluidMemory:1.08, phaseCascade:1.05, rimFlutter:0.86, microPulse:0.22, mesogleaSpring:1.18, coastPause:0.66, vortexCouple:1.10, velarTuck:0.42, radialFolds:0.62, pointSize:1.7, glow:1.15, threshold:0.28, aberration:0.0045, hueShift:18, zoom:0.92, rotate:0.15, tilt:-0.08 },
+      abyss:{ bellRadius:46, bellHeight:58, undersideLift:24, density:44, oralArms:4, tentacles:10, tentacleLength:132, curl:0.92, movementMode:'jetting', pulseSpeed:0.58, pulseAmount:0.76, sway:0.62, turbulence:0.52, drift:10.0, powerStroke:0.86, elasticRecoil:0.42, vortexWake:0.62, tentacleInertia:0.54, currentFlow:0.18, bellWave:0.34, asymmetry:0.28, fluidMemory:0.42, phaseCascade:0.48, rimFlutter:0.44, microPulse:0.48, mesogleaSpring:0.62, coastPause:0.20, vortexCouple:0.72, velarTuck:0.92, radialFolds:0.30, pointSize:3.3, glow:1.38, threshold:0.24, aberration:0.0075, hueShift:-26, zoom:1.16, rotate:0.33, tilt:-0.16 }
+    }[name];
+    if(!P) return;
+    Object.assign(S.params, P);
+    for(const k in P){ if(ui[k]) ui[k].value = P[k]; }
+    S.cam.pitch = S.params.tilt;
+    S.motion.wake = 0; S.motion.glide = 0; S.motion.currentX = 0; S.motion.currentZ = 0; S.motion.beatSkew = 0; S.motion.roll = 0; S.motion.pitch = 0; S.motion.lateral = 0; S.motion.shimmer = 0; S.motion.startVortex = 0; S.motion.stopVortex = 0; S.motion.elastic = 0; S.motion.elasticVel = 0; S.motion.coast = 0;
+    syncUI();
+    rebuildJellyfish();
+  }
+
+  let dragging = false, lx = 0, ly = 0;
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('pointerdown', e => {
+    dragging = true;
+    lx = e.clientX;
+    ly = e.clientY;
+    canvas.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  }, { passive:false });
+  canvas.addEventListener('pointermove', e => {
+    if(!dragging) return;
+    S.cam.yaw += (e.clientX - lx) * 0.006;
+    S.cam.pitch = clamp(S.cam.pitch + (e.clientY - ly) * 0.006, -1.2, 1.2);
+    ui.tilt.value = S.cam.pitch;
+    S.params.tilt = S.cam.pitch;
+    lx = e.clientX; ly = e.clientY;
+    syncUI();
+    e.preventDefault();
+  }, { passive:false });
+  const endDrag = e => {
+    dragging = false;
+    if(e && typeof e.pointerId !== 'undefined') canvas.releasePointerCapture?.(e.pointerId);
+  };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('pointerleave', endDrag);
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    S.params.zoom = clamp(S.params.zoom * Math.exp(-e.deltaY * 0.001), 0.4, 3);
+    ui.zoom.value = S.params.zoom;
+    syncUI();
+  }, { passive:false });
+
+  ui.movementMode.addEventListener('change', () => {
+    S.params.movementMode = ui.movementMode.value;
+    syncUI();
+  });
+  ui.behaviorMode.addEventListener('change', () => {
+    S.behavior.mode = ui.behaviorMode.value;
+    S.behavior.stateTime = 0;
+    syncUI();
+  });
+  ui.behaviorState.addEventListener('change', () => {
+    S.behavior.manualState = ui.behaviorState.value;
+    if(S.behavior.mode === 'manual'){
+      S.behavior.state = S.behavior.manualState;
+      S.behavior.stateTime = 0;
+    }
+    syncUI();
+  });
+  ui.energy.addEventListener('input', () => { S.behavior.energy = parseFloat(ui.energy.value); syncUI(); });
+  ui.alertness.addEventListener('input', () => { S.behavior.alertness = parseFloat(ui.alertness.value); syncUI(); });
+  ui.fatigue.addEventListener('input', () => { S.behavior.fatigue = parseFloat(ui.fatigue.value); syncUI(); });
+
+  ui.resetBtn.addEventListener('click', () => {
+    S.cam.yaw = 0; S.cam.pitch = S.params.tilt = -0.12; S.params.zoom = 1.0;
+    S.behavior.energy = 0.82; S.behavior.alertness = 0.18; S.behavior.fatigue = 0.08; S.behavior.quiescence = 0.22; S.behavior.state = 'cruise'; S.behavior.manualState = 'cruise'; S.behavior.turnSign = 1; S.behavior.turnCooldown = 1.4; S.behavior.stateTime = 0;
+    S.motion.wake = 0; S.motion.glide = 0; S.motion.currentX = 0; S.motion.currentZ = 0; S.motion.beatSkew = 0; S.motion.roll = 0; S.motion.pitch = 0; S.motion.lateral = 0; S.motion.shimmer = 0; S.motion.startVortex = 0; S.motion.stopVortex = 0; S.motion.elastic = 0; S.motion.elasticVel = 0; S.motion.coast = 0;
+    ui.tilt.value = S.params.tilt; ui.zoom.value = S.params.zoom;
+    syncUI();
+  });
+  ui.regenBtn.addEventListener('click', rebuildJellyfish);
+  ui.shotBtn.addEventListener('click', () => {
+    render();
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'jellyfish-lab.png';
+    a.click();
+  });
+  document.querySelectorAll('[data-preset]').forEach(btn => btn.addEventListener('click', () => applyPreset(btn.dataset.preset)));
+  ui.togglePanel.addEventListener('click', () => document.body.classList.toggle('panel-open'));
+
+  bindSlider('bellRadius', true); bindSlider('bellHeight', true); bindSlider('undersideLift', true); bindSlider('density', true);
+  bindSlider('oralArms', true); bindSlider('tentacles', true); bindSlider('tentacleLength', true); bindSlider('curl', false);
+  bindSlider('pulseSpeed', false); bindSlider('pulseAmount', false); bindSlider('sway', false); bindSlider('turbulence', false); bindSlider('drift', false);
+  bindSlider('powerStroke', false); bindSlider('elasticRecoil', false); bindSlider('vortexWake', false); bindSlider('tentacleInertia', false); bindSlider('currentFlow', false); bindSlider('bellWave', false); bindSlider('asymmetry', false);
+  bindSlider('fluidMemory', false); bindSlider('phaseCascade', false); bindSlider('rimFlutter', false); bindSlider('microPulse', false);
+  bindSlider('mesogleaSpring', false); bindSlider('coastPause', false); bindSlider('vortexCouple', false); bindSlider('velarTuck', false); bindSlider('radialFolds', false);
+  bindSlider('pointSize', false); bindSlider('glow', false); bindSlider('threshold', false); bindSlider('aberration', false); bindSlider('hueShift', false);
+  bindSlider('zoom', false); bindSlider('rotate', false); bindSlider('tilt', false);
+
+  window.addEventListener('resize', resize);
+
+  let last = performance.now();
+  let uiFrame = 0;
+  function frame(now){
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    S.time += dt;
+    updateBehavior(dt);
+    S.cam.yaw += dt * (S.params.rotate * 0.28 + S.behavior.turnSign * behaviorProfile(S.behavior).turnStrength * 0.06 * (S.behavior.state === 'turn' ? 1 : 0));
+    updateJellyfish(dt);
+    render();
+    S.fps = lerp(S.fps || 60, 1 / Math.max(dt, 1e-4), 0.08);
+    ui.fpsLabel.textContent = S.fps.toFixed(0) + ' fps';
+    if((uiFrame++ & 3) === 0) syncUI();
+    requestAnimationFrame(frame);
+  }
+
+  try {
+    initGL();
+    resize();
+    rebuildJellyfish();
+    syncUI();
+    requestAnimationFrame(frame);
+  } catch(err){
+    console.error(err);
+    ui.errorBox.textContent = 'Shader-/WebGL-Fehler: ' + err.message;
+    ui.errorBox.classList.add('active');
+  }
+})();
+</script>
+</body>
+</html>
