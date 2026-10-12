@@ -62,7 +62,7 @@
   .chip{font-size:11px;padding:5px 9px;border-radius:999px;background:rgba(122,184,255,.14);border:1px solid rgba(122,184,255,.26);backdrop-filter:blur(8px)}
   .fab{display:none;position:absolute;top:12px;right:12px;z-index:12;width:44px;height:44px;border-radius:14px}
   .drawer{display:none;width:56px;height:6px;border-radius:999px;margin:4px auto 12px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.08)}
-  .error{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;background:#05070c;z-index:20}
+  .error{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;background:#05070c;z-index:10}
   .error.active{display:flex}
   @media (max-width:980px){
     body{grid-template-columns:1fr;padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
@@ -206,6 +206,18 @@
     </div>
 
     <div class="group">
+      <div class="group-title"><span>Performance</span><span id="resolutionLabel">—</span></div>
+      <label for="performanceProfile">Render budget</label>
+      <select id="performanceProfile">
+        <option value="balanced">Balanced · 60 fps</option>
+        <option value="battery">Battery · 30 fps</option>
+        <option value="quality">Quality · 60 fps</option>
+      </select>
+      <p class="sub" id="performanceStatus" role="status">Starting renderer…</p>
+      <button id="retryBtn" hidden>Renderer erneut starten</button>
+    </div>
+
+    <div class="group">
       <div class="group-title"><span>Camera</span><span id="fpsLabel">0 fps</span></div>
       <div class="row"><label for="zoom">Zoom</label><span class="val" id="zoomVal"></span></div>
       <input id="zoom" type="range" min="0.4" max="3" step="0.01" value="1.0">
@@ -248,6 +260,7 @@
     behaviorMode: $('behaviorMode'), behaviorModeLabel: $('behaviorModeLabel'), behaviorState: $('behaviorState'), behaviorStateLabel: $('behaviorStateLabel'), behaviorLabel: $('behaviorLabel'), energy: $('energy'), alertness: $('alertness'), fatigue: $('fatigue'),
     pointSize: $('pointSize'), glow: $('glow'), threshold: $('threshold'), aberration: $('aberration'), hueShift: $('hueShift'),
     zoom: $('zoom'), rotate: $('rotate'), tilt: $('tilt'), resetBtn: $('resetBtn'), regenBtn: $('regenBtn'), shotBtn: $('shotBtn'),
+    performanceProfile: $('performanceProfile'), performanceStatus: $('performanceStatus'), resolutionLabel: $('resolutionLabel'), retryBtn: $('retryBtn'),
     fpsLabel: $('fpsLabel'), pointCountLabel: $('pointCountLabel'), shapeLabel: $('shapeLabel'), appendageLabel: $('appendageLabel'), motionLabel: $('motionLabel'), lookLabel: $('lookLabel'),
     chipA: $('chipA'), chipB: $('chipB'), chipC: $('chipC'),
     errorBox: $('errorBox'), togglePanel: $('togglePanel')
@@ -257,7 +270,7 @@
     .forEach(k => valueEls[k] = $(k + 'Val'));
 
   const canvas = $('gl');
-  const gl = canvas.getContext('webgl2', { antialias:true, alpha:false, premultipliedAlpha:false, preserveDrawingBuffer:true });
+  const gl = canvas.getContext('webgl2', { antialias:true, alpha:false, premultipliedAlpha:false, preserveDrawingBuffer:false });
   if (!gl) { ui.errorBox.classList.add('active'); return; }
 
   const S = {
@@ -297,7 +310,7 @@
   const colArray = new Float32Array(MAX_POINTS * 3);
   let pointCount = 0;
 
-  let vao = null, posBuffer = null, colBuffer = null, quadVAO = null;
+  let vao = null, posBuffer = null, colBuffer = null, quadVAO = null, quadBuffer = null;
   let pointProgram = null, bloomProgram = null, compositeProgram = null;
   let fboScene = null, fboBloom1 = null, fboBloom2 = null;
 
@@ -305,6 +318,75 @@
   const lerp = (a,b,t) => a + (b-a) * t;
   const TAU = Math.PI * 2;
   const fract = x => x - Math.floor(x);
+
+  // BEGIN PERFORMANCE POLICY — pure functions, also exercised by node --test.
+  const PERFORMANCE_PROFILES = Object.freeze({
+    balanced: { targetFPS:60, maxDPR:2, maxPixels:4000000 },
+    battery: { targetFPS:30, maxDPR:1.25, maxPixels:1800000 },
+    quality: { targetFPS:60, maxDPR:2.5, maxPixels:6500000 }
+  });
+  function renderSize(width, height, deviceDPR, scale, profile, limits){
+    const w = Math.max(1, Math.floor(width)), h = Math.max(1, Math.floor(height));
+    const base = Math.min(Math.max(0.1, deviceDPR || 1), profile.maxDPR,
+      Math.sqrt(profile.maxPixels / (w * h)), limits[0] / w, limits[1] / h);
+    const dpr = base * Math.max(0.5, Math.min(1, scale));
+    return { width:Math.max(1, Math.floor(w * dpr)), height:Math.max(1, Math.floor(h * dpr)), dpr };
+  }
+  function createPerformanceMeter(){
+    return { elapsed:0, frames:0, samples:[], warmup:1000, low:0, high:0, cooldown:0 };
+  }
+  function measureFrame(meter, interval, targetFPS, scale){
+    if(!Number.isFinite(interval) || interval <= 0) return null;
+    // Warm up after resume/reallocation; never clamp the intervals used for FPS.
+    if(meter.warmup > 0){ meter.warmup -= interval; return null; }
+    meter.elapsed += interval;
+    meter.frames++;
+    meter.samples.push(interval);
+    if(meter.elapsed < 1000) return null;
+    const fps = 1000 * meter.frames / meter.elapsed;
+    const sorted = meter.samples.slice().sort((a,b) => a-b);
+    const p95 = sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)];
+    const seconds = meter.elapsed / 1000;
+    meter.cooldown = Math.max(0, meter.cooldown - seconds);
+    // Time-based hysteresis: fast reduction, deliberately slow recovery.
+    meter.low = fps < targetFPS * 0.82 ? meter.low + seconds : 0;
+    meter.high = fps > targetFPS * 0.95 && p95 < 1400 / targetFPS ? meter.high + seconds : 0;
+    let nextScale = scale;
+    if(meter.cooldown === 0){
+      if(meter.low >= 2) nextScale = Math.max(0.5, +(scale - 0.1).toFixed(2));
+      else if(meter.high >= 8) nextScale = Math.min(1, +(scale + 0.05).toFixed(2));
+    }
+    if(nextScale !== scale){ meter.low = meter.high = 0; meter.cooldown = 4; }
+    meter.elapsed = meter.frames = 0;
+    meter.samples.length = 0;
+    return { fps, p95, scale:nextScale };
+  }
+  // END PERFORMANCE POLICY
+
+  const runtime = {
+    ready:false, lost:false, pageHidden:false, raf:null, last:null, nextDue:null, lastUI:0,
+    resizePending:true, profile:'balanced', scale:1, meter:createPerformanceMeter(),
+    limits:[1,1], generation:0, frames:0, allocations:0, p95:0, error:null
+  };
+  // Track every owned object, including partially initialized resources.
+  let gpuObjects = [];
+  let uniforms = new Map();
+  function own(kind, object){
+    if(!object) throw new Error('GPU allocation failed: ' + kind);
+    gpuObjects.push([kind, object]);
+    return object;
+  }
+  function releaseGPU(){
+    if(!gl.isContextLost()){
+      for(const [kind, object] of gpuObjects) gl['delete' + kind](object);
+    }
+    gpuObjects = [];
+    uniforms = new Map();
+    vao = posBuffer = colBuffer = quadVAO = quadBuffer = null;
+    pointProgram = bloomProgram = compositeProgram = null;
+    fboScene = fboBloom1 = fboBloom2 = null;
+  }
+  function uniform(program, name){ return uniforms.get(program)[name]; }
 
   function smoothstep01(x){
     x = clamp(x, 0, 1);
@@ -841,7 +923,7 @@
   }
 
   function compileShader(src, type){
-    const sh = gl.createShader(type);
+    const sh = own('Shader', gl.createShader(type));
     gl.shaderSource(sh, src);
     gl.compileShader(sh);
     if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
@@ -849,41 +931,64 @@
   }
 
   function linkProgram(vs, fs){
-    const p = gl.createProgram();
+    const p = own('Program', gl.createProgram());
     gl.attachShader(p, vs); gl.attachShader(p, fs); gl.linkProgram(p);
     if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    const locations = {};
+    const count = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for(let i = 0; i < count; i++){
+      const name = gl.getActiveUniform(p, i).name;
+      locations[name] = gl.getUniformLocation(p, name);
+    }
+    uniforms.set(p, locations);
+    // Linked programs retain their executable; shader objects need not stay alive.
+    for(const shader of [vs, fs]){
+      gl.detachShader(p, shader);
+      gl.deleteShader(shader);
+      gpuObjects = gpuObjects.filter(([, object]) => object !== shader);
+    }
     return p;
   }
 
   function createFBO(w, h, depth){
-    const tex = gl.createTexture();
+    const tex = own('Texture', gl.createTexture());
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    const fb = gl.createFramebuffer();
+    const fb = own('Framebuffer', gl.createFramebuffer());
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
     let rb = null;
     if(depth){
-      rb = gl.createRenderbuffer();
+      rb = own('Renderbuffer', gl.createRenderbuffer());
       gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
       gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
       gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
     }
+    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if(status !== gl.FRAMEBUFFER_COMPLETE){
+      disposeFBO({ fb, tex, rb });
+      throw new Error('Framebuffer incomplete: 0x' + status.toString(16));
+    }
     return { fb, tex, rb, w, h };
   }
 
   function disposeFBO(f){
     if(!f) return;
-    gl.deleteFramebuffer(f.fb); gl.deleteTexture(f.tex); if(f.rb) gl.deleteRenderbuffer(f.rb);
+    if(!gl.isContextLost()){
+      gl.deleteFramebuffer(f.fb); gl.deleteTexture(f.tex); if(f.rb) gl.deleteRenderbuffer(f.rb);
+    }
+    gpuObjects = gpuObjects.filter(([, object]) => object !== f.fb && object !== f.tex && object !== f.rb);
   }
 
   function initFBOs(){
     disposeFBO(fboScene); disposeFBO(fboBloom1); disposeFBO(fboBloom2);
+    fboScene = fboBloom1 = fboBloom2 = null;
+    runtime.allocations++;
     fboScene = createFBO(canvas.width, canvas.height, true);
     fboBloom1 = createFBO(Math.max(2, canvas.width >> 1), Math.max(2, canvas.height >> 1), false);
     fboBloom2 = createFBO(Math.max(2, canvas.width >> 1), Math.max(2, canvas.height >> 1), false);
@@ -983,9 +1088,9 @@
     bloomProgram = linkProgram(compileShader(quadVS, gl.VERTEX_SHADER), compileShader(bloomFS, gl.FRAGMENT_SHADER));
     compositeProgram = linkProgram(compileShader(quadVS, gl.VERTEX_SHADER), compileShader(compositeFS, gl.FRAGMENT_SHADER));
 
-    posBuffer = gl.createBuffer();
-    colBuffer = gl.createBuffer();
-    vao = gl.createVertexArray();
+    posBuffer = own('Buffer', gl.createBuffer());
+    colBuffer = own('Buffer', gl.createBuffer());
+    vao = own('VertexArray', gl.createVertexArray());
     gl.bindVertexArray(vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, MAX_POINTS * 3 * 4, gl.DYNAMIC_DRAW);
@@ -997,27 +1102,34 @@
     gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
     gl.bindVertexArray(null);
 
-    quadVAO = gl.createVertexArray();
+    quadVAO = own('VertexArray', gl.createVertexArray());
     gl.bindVertexArray(quadVAO);
-    const q = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, q);
+    quadBuffer = own('Buffer', gl.createBuffer());
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.bindVertexArray(null);
   }
 
-  function resize(){
-    DPR = Math.min(2, window.devicePixelRatio || 1);
+  function resize(){ runtime.resizePending = true; }
+
+  function resizeRenderer(){
     const rect = canvas.getBoundingClientRect();
     W = Math.max(1, Math.floor(rect.width));
     H = Math.max(1, Math.floor(rect.height));
-    canvas.width = Math.floor(W * DPR);
-    canvas.height = Math.floor(H * DPR);
-    canvas.style.width = W + 'px';
-    canvas.style.height = H + 'px';
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    initFBOs();
+    const size = renderSize(W, H, window.devicePixelRatio, runtime.scale,
+      PERFORMANCE_PROFILES[runtime.profile], runtime.limits);
+    DPR = size.dpr;
+    // CSS owns layout. Pixel styles here would freeze the canvas after rotation.
+    if(canvas.width !== size.width || canvas.height !== size.height || !fboScene){
+      canvas.width = size.width;
+      canvas.height = size.height;
+      initFBOs();
+      runtime.meter.warmup = 1000;
+    }
+    runtime.resizePending = false;
+    ui.resolutionLabel.textContent = `${canvas.width} × ${canvas.height}`;
   }
 
   function rebuildJellyfish(){
@@ -1237,6 +1349,7 @@
   }
 
   function render(){
+    if(!runtime.ready || gl.isContextLost()) return;
     const proj = new Float32Array(16);
     buildProjMatrix(proj, Math.PI / 4, canvas.width / canvas.height, 0.1, 1000);
     const view = buildViewMatrix();
@@ -1250,10 +1363,10 @@
     gl.enable(gl.DEPTH_TEST);
 
     gl.useProgram(pointProgram);
-    gl.uniformMatrix4fv(gl.getUniformLocation(pointProgram, 'uProj'), false, proj);
-    gl.uniformMatrix4fv(gl.getUniformLocation(pointProgram, 'uView'), false, view);
-    gl.uniform1f(gl.getUniformLocation(pointProgram, 'uPointSize'), S.params.pointSize);
-    gl.uniform1f(gl.getUniformLocation(pointProgram, 'uOpacity'), 0.88);
+    gl.uniformMatrix4fv(uniform(pointProgram, 'uProj'), false, proj);
+    gl.uniformMatrix4fv(uniform(pointProgram, 'uView'), false, view);
+    gl.uniform1f(uniform(pointProgram, 'uPointSize'), S.params.pointSize * DPR / Math.min(2, window.devicePixelRatio || 1));
+    gl.uniform1f(uniform(pointProgram, 'uOpacity'), 0.88);
     gl.bindVertexArray(vao);
     gl.drawArrays(gl.POINTS, 0, pointCount);
 
@@ -1268,10 +1381,10 @@
       gl.useProgram(bloomProgram);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, fboScene.tex);
-      gl.uniform1i(gl.getUniformLocation(bloomProgram, 'uTex'), 0);
-      gl.uniform2f(gl.getUniformLocation(bloomProgram, 'uDir'), 1, 0);
-      gl.uniform1f(gl.getUniformLocation(bloomProgram, 'uThreshold'), S.params.threshold);
-      gl.uniform1i(gl.getUniformLocation(bloomProgram, 'uPass'), 0);
+      gl.uniform1i(uniform(bloomProgram, 'uTex'), 0);
+      gl.uniform2f(uniform(bloomProgram, 'uDir'), 1, 0);
+      gl.uniform1f(uniform(bloomProgram, 'uThreshold'), S.params.threshold);
+      gl.uniform1i(uniform(bloomProgram, 'uPass'), 0);
       gl.bindVertexArray(quadVAO);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
@@ -1280,8 +1393,8 @@
       gl.clearColor(0,0,0,1);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.bindTexture(gl.TEXTURE_2D, fboBloom1.tex);
-      gl.uniform2f(gl.getUniformLocation(bloomProgram, 'uDir'), 0, 1);
-      gl.uniform1i(gl.getUniformLocation(bloomProgram, 'uPass'), 1);
+      gl.uniform2f(uniform(bloomProgram, 'uDir'), 0, 1);
+      gl.uniform1i(uniform(bloomProgram, 'uPass'), 1);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
@@ -1292,12 +1405,12 @@
     gl.useProgram(compositeProgram);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, fboScene.tex);
-    gl.uniform1i(gl.getUniformLocation(compositeProgram, 'uScene'), 0);
+    gl.uniform1i(uniform(compositeProgram, 'uScene'), 0);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, S.params.glow > 0.001 ? fboBloom2.tex : fboScene.tex);
-    gl.uniform1i(gl.getUniformLocation(compositeProgram, 'uBloom'), 1);
-    gl.uniform1f(gl.getUniformLocation(compositeProgram, 'uGlow'), S.params.glow * 0.85);
-    gl.uniform1f(gl.getUniformLocation(compositeProgram, 'uAberration'), S.params.aberration);
+    gl.uniform1i(uniform(compositeProgram, 'uBloom'), 1);
+    gl.uniform1f(uniform(compositeProgram, 'uGlow'), S.params.glow * 0.85);
+    gl.uniform1f(uniform(compositeProgram, 'uAberration'), S.params.aberration);
     gl.bindVertexArray(quadVAO);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
@@ -1452,6 +1565,7 @@
   });
   ui.regenBtn.addEventListener('click', rebuildJellyfish);
   ui.shotBtn.addEventListener('click', () => {
+    if(!runtime.ready || runtime.lost || document.hidden || runtime.pageHidden || gl.isContextLost()) return;
     render();
     const a = document.createElement('a');
     a.href = canvas.toDataURL('image/png');
@@ -1471,34 +1585,160 @@
   bindSlider('zoom', false); bindSlider('rotate', false); bindSlider('tilt', false);
 
   window.addEventListener('resize', resize);
-
-  let last = performance.now();
-  let uiFrame = 0;
-  function frame(now){
-    const dt = Math.min(0.05, (now - last) / 1000);
-    last = now;
-    S.time += dt;
-    updateBehavior(dt);
-    S.cam.yaw += dt * (S.params.rotate * 0.28 + S.behavior.turnSign * behaviorProfile(S.behavior).turnStrength * 0.06 * (S.behavior.state === 'turn' ? 1 : 0));
-    updateJellyfish(dt);
-    render();
-    S.fps = lerp(S.fps || 60, 1 / Math.max(dt, 1e-4), 0.08);
-    ui.fpsLabel.textContent = S.fps.toFixed(0) + ' fps';
-    if((uiFrame++ & 3) === 0) syncUI();
-    requestAnimationFrame(frame);
+  window.visualViewport?.addEventListener('resize', resize);
+  if(typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(canvas);
+  // DPR can change without a CSS-size change when moving between monitors.
+  let dprQuery;
+  function watchDPR(){
+    dprQuery?.removeEventListener('change', onDPRChange);
+    dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    dprQuery.addEventListener('change', onDPRChange);
   }
+  function onDPRChange(){ resize(); watchDPR(); }
+  watchDPR();
 
-  try {
-    initGL();
-    resize();
-    rebuildJellyfish();
-    syncUI();
-    requestAnimationFrame(frame);
-  } catch(err){
-    console.error(err);
-    ui.errorBox.textContent = 'Shader-/WebGL-Fehler: ' + err.message;
+  function canRun(){
+    return runtime.ready && !runtime.lost && !runtime.pageHidden && !document.hidden && !gl.isContextLost();
+  }
+  function stopLoop(){
+    if(runtime.raf !== null) cancelAnimationFrame(runtime.raf);
+    runtime.raf = null;
+    runtime.last = null;
+    runtime.nextDue = null;
+    runtime.meter = createPerformanceMeter();
+    S.fps = 0;
+    ui.fpsLabel.textContent = '— fps';
+  }
+  function startLoop(){
+    if(canRun() && runtime.raf === null) runtime.raf = requestAnimationFrame(frame);
+  }
+  function status(){
+    ui.shotBtn.disabled = !canRun();
+    ui.retryBtn.hidden = !runtime.error || runtime.lost;
+    ui.performanceStatus.textContent = runtime.lost
+      ? 'WebGL-Kontext verloren. Einstellungen bleiben erhalten; warte auf Wiederherstellung.'
+      : runtime.error ? 'Renderer gestoppt: ' + runtime.error
+      : !canRun() ? 'Im Hintergrund pausiert.'
+      : `${Math.round(runtime.scale * 100)}% Renderqualität · DPR ${DPR.toFixed(2)} · P95 ${runtime.p95.toFixed(1)} ms`;
+  }
+  function failRenderer(error){
+    stopLoop();
+    runtime.ready = false;
+    // A loss can happen before its event arrives. Let the browser restore it.
+    if(gl.isContextLost()) { status(); return; }
+    runtime.error = error.message || String(error);
+    releaseGPU();
+    console.error(error);
+    ui.errorBox.textContent = 'WebGL-Fehler: ' + runtime.error + '. Erneuter Start im Performance-Menü möglich.';
     ui.errorBox.classList.add('active');
+    status();
   }
+  function initializeRenderer(){
+    stopLoop();
+    runtime.ready = false;
+    runtime.error = null;
+    try {
+      releaseGPU();
+      const maxViewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+      const maxSize = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
+      runtime.limits = [Math.min(maxSize, maxViewport[0]), Math.min(maxSize, maxViewport[1])];
+      initGL();
+      resizeRenderer();
+      // Recompute/upload existing CPU geometry; never apply a preset or reset S.
+      updateJellyfish(0);
+      if(gl.isContextLost()) return;
+      const error = gl.getError();
+      if(error !== gl.NO_ERROR) throw new Error('GPU initialization failed: 0x' + error.toString(16));
+      runtime.ready = true;
+      runtime.generation++;
+      ui.errorBox.classList.remove('active');
+      status();
+      startLoop();
+    } catch(error){ failRenderer(error); }
+  }
+  canvas.addEventListener('webglcontextlost', event => {
+    event.preventDefault();
+    runtime.lost = true;
+    runtime.ready = false;
+    stopLoop();
+    dragging = false;
+    releaseGPU(); // discard invalid handles; no GL calls while lost
+    ui.errorBox.classList.remove('active');
+    status();
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    runtime.lost = false;
+    initializeRenderer();
+  });
+  function onVisibilityChange(){
+    if(document.hidden || runtime.pageHidden){ stopLoop(); dragging = false; }
+    else { resize(); startLoop(); }
+    status();
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('pagehide', () => { runtime.pageHidden = true; onVisibilityChange(); });
+  window.addEventListener('pageshow', () => { runtime.pageHidden = false; onVisibilityChange(); });
+  ui.retryBtn.addEventListener('click', () => { if(!gl.isContextLost()) initializeRenderer(); });
+  ui.performanceProfile.addEventListener('change', () => {
+    runtime.profile = ui.performanceProfile.value;
+    runtime.scale = 1;
+    stopLoop();
+    resize();
+    startLoop();
+    status();
+  });
+
+  function frame(now){
+    runtime.raf = null;
+    if(!canRun()) return;
+    try {
+      const target = PERFORMANCE_PROFILES[runtime.profile].targetFPS;
+      const interval = runtime.last === null ? 0 : now - runtime.last;
+      // Keep an absolute cadence: rounding every interval down would limit a
+      // 90/144 Hz display to 45/48 fps even when it has plenty of headroom.
+      const period = 1000 / target;
+      if(runtime.nextDue === null) runtime.nextDue = now;
+      if(now + 1 < runtime.nextDue){ startLoop(); return; }
+      runtime.nextDue += (Math.floor(Math.max(0, now - runtime.nextDue) / period) + 1) * period;
+      runtime.last = now;
+      if(runtime.resizePending) resizeRenderer();
+      const dt = Math.min(0.05, Math.max(0, interval / 1000));
+      S.time += dt;
+      updateBehavior(dt);
+      S.cam.yaw += dt * (S.params.rotate * 0.28 + S.behavior.turnSign * behaviorProfile(S.behavior).turnStrength * 0.06 * (S.behavior.state === 'turn' ? 1 : 0));
+      updateJellyfish(dt);
+      render();
+      runtime.frames++;
+      const report = measureFrame(runtime.meter, interval, target, runtime.scale);
+      if(report){
+        S.fps = report.fps;
+        runtime.p95 = report.p95;
+        ui.fpsLabel.textContent = `${S.fps.toFixed(0)} fps`;
+        if(report.scale !== runtime.scale){ runtime.scale = report.scale; resize(); }
+        status();
+      }
+      if(now - runtime.lastUI >= 100){ syncUI(); runtime.lastUI = now; }
+      startLoop();
+    } catch(error){ failRenderer(error); }
+  }
+
+  // Explicit opt-in, read-only diagnostics for the dependency-free browser suite.
+  if(new URLSearchParams(location.search).has('test')){
+    window.jellyfishTest = Object.freeze({
+      snapshot: () => ({
+        ready:runtime.ready, lost:runtime.lost, scheduled:runtime.raf !== null,
+        generation:runtime.generation, frames:runtime.frames, allocations:runtime.allocations,
+        error:runtime.error, time:S.time, fps:S.fps, scale:runtime.scale, profile:runtime.profile,
+        width:canvas.width, height:canvas.height, dpr:DPR, pointCount,
+        state:JSON.parse(JSON.stringify({ params:S.params, cam:S.cam, behavior:S.behavior, motion:S.motion, points:S.jelly.points }))
+      }),
+      resources: () => ({ vao, posBuffer, colBuffer, quadVAO, quadBuffer, pointProgram, bloomProgram, compositeProgram, fboScene, fboBloom1, fboBloom2 }),
+      policy:Object.freeze({ renderSize, createPerformanceMeter, measureFrame, profiles:PERFORMANCE_PROFILES })
+    });
+  }
+  rebuildJellyfish();
+  syncUI();
+  initializeRenderer();
 })();
 </script>
 </body>
